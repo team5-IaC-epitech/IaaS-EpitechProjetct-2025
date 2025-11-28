@@ -1,0 +1,4 @@
+project_id  = "iaasepitech"
+region      = "europe-west9"
+vpc_name = "team5-vpc-dev"
+cidr_block  = "10.0.1.0/24"
