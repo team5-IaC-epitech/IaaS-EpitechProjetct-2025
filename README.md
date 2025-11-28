@@ -39,16 +39,20 @@ To create a Google Cloud Storage bucket via the web console, follow these steps:
 - **Plan**: Preview the changes Terraform will make to your infrastructure.
 
   ```bash
-  terraform plan
+  terraform plan -var-file=dev.tfvars # For development
+  terraform plan -var-file=prod.tfvars # For production
   ```
 
 - **Apply**: Apply the changes to your infrastructure.
 
   ```bash
-  terraform apply
+  terraform apply -var-file=dev.tfvars # For development
+  terraform apply -var-file=prod.tfvars # For production
   ```
 
 - **Destroy**: Tear down the infrastructure managed by Terraform.
+
   ```bash
-  terraform destroy
+  terraform destroy -var-file=dev.tfvars # For development
+  terraform destroy -var-file=prod.tfvars # For production
   ```
