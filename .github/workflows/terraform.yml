@@ -16,10 +16,16 @@ jobs:
 
     strategy:
       matrix:
-        env: [dev, prd]
+        env: [dev]
 
     steps:
       - uses: actions/checkout@v3
+
+      - id: auth
+        uses: google-github-actions/auth@v2.0.0
+        with:
+          workload_identity_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github'
+          service_account: 'team5-sa-dev@iaasepitech.iam.gserviceaccount.com'
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
