@@ -1,0 +1,32 @@
+name: Terraform Destroy
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # Permet de déclencher manuellement le workflow
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        env: [dev, prd]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Init Terraform
+        run: terraform init -backend-config=backends/${{ matrix.env }}.config
+
+      - name: Terraform Destroy
+        run: terraform destroy -auto-approve -var-file=${{ matrix.env }}.tfvars
