@@ -1,0 +1,31 @@
+name: Terraform Destroy
+
+on:
+  workflow_dispatch: # Permet de déclencher manuellement le workflow
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        env: [dev]
+
+    steps:
+      steps:
+        - uses: actions/checkout@v3
+
+        - id: auth
+          uses: google-github-actions/auth@v2.0.0
+          with:
+            workload_identity_provider: "projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github"
+            service_account: "team5-sa-dev@iaasepitech.iam.gserviceaccount.com"
+
+        - name: Setup Terraform
+          uses: hashicorp/setup-terraform@v2
+
+        - name: Init Terraform
+          run: terraform init -backend-config=backends/${{ matrix.env }}.config
+
+        - name: Terraform Destroy
+          run: terraform destroy -auto-approve -var-file=${{ matrix.env }}.tfvars
