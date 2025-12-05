@@ -17,7 +17,7 @@ jobs:
 
     strategy:
       matrix:
-        env: [dev, prd]
+        env: [dev]
 
     steps:
       steps:
