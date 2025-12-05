@@ -5,11 +5,26 @@ terraform {
       source  = "hashicorp/google"
       version = "7.12.0"
     }
+    github = {
+      source  = "integrations/github"
+      version = "5.3.0"
+    }
   }
 
   backend "gcs" {
   }
 
+}
+
+provider "github" {
+  owner = "AxelDerbisz"
+  token = var.github_token
+}
+
+resource github_repository_collaborator "teacher" {
+  repository = "Iaas-EpitechProjetct-2025"
+  username   = "Kloox"
+  permission = "pull"
 }
 
 resource "google_project_iam_member" "teachers" {
