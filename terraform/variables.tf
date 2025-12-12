@@ -19,7 +19,7 @@ variable "vpc_name" {
 variable "cidr_block" {
   type        = string
   description = "CIDR block for the VPC"
-  default     = "10.0.1.0/24"
+  default     = "10.0.0.0/20"
 }
 
 variable "cluster_name" {
@@ -55,13 +55,13 @@ variable "max_node_count" {
 variable "machine_type" {
   description = "Machine type for GKE nodes"
   type        = string
-  default     = "e2-medium"
+  default     = "e2-standard-2  "
 }
 
 variable "disk_size_gb" {
   description = "Disk size for GKE nodes in GB"
   type        = number
-  default     = 10
+  default     = 50
 }
 
 variable "disk_type" {

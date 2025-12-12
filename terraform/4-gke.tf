@@ -39,6 +39,11 @@ resource "google_container_cluster" "primary" {
     enabled = true
     provider = "CALICO"
   }
+  networking_mode = "VPC_NATIVE"
+
+  timeouts {
+    create = "25m"
+  }
   logging_config {
     enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]
   }

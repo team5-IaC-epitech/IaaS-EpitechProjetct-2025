@@ -6,11 +6,11 @@ resource "google_compute_subnetwork" "vpc_subnet" {
 
   secondary_ip_range {
     range_name    = "pods-range"
-    ip_cidr_range = "10.1.0.0/16"
+    ip_cidr_range = "10.4.0.0/14"
   }
 
   secondary_ip_range {
     range_name    = "services-range"
-    ip_cidr_range = "10.2.0.0/16"
+    ip_cidr_range = "10.8.0.0/20"
   }
 }
