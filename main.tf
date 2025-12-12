@@ -39,7 +39,7 @@ resource "google_compute_subnetwork" "vpc_subnet" {
   }
 }
 
-resource "google_container_cluster "primary" {
+resource "google_container_cluster" "primary" {
   name = var.cluster_name
   location = var.region
   remove_default_node_pool = true
@@ -57,7 +57,7 @@ resource "google_container_cluster "primary" {
     workload_pool = "${var.project_id}.svc.id.goog"
   }
 
-  realease_channel {
+  release_channel {
     channel = "REGULAR"
   }
 
@@ -85,7 +85,7 @@ resource "google_container_cluster "primary" {
 
   monitoring_config {
     enable_components = ["SYSTEM_COMPONENTS"]
-    managed_prometheus_config {
+    managed_prometheus {
       enabled = true
     }
   }
@@ -165,7 +165,7 @@ resource "google_container_node_pool" "primary_nodes" {
       metadata = {
         disable-legacy-endpoints = "true"
       }
-      workload_identity_config {
+      workload_metadata_config {
         mode = "GKE_METADATA"
       }
 
