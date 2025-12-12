@@ -34,11 +34,14 @@ jobs:
         uses: hashicorp/setup-terraform@v2
 
       - name: Init Terraform
-        run: terraform init -backend-config=backends/${{ matrix.env }}.config
+        working-directory: terraform
+        run: terraform init -backend-config=../backends/${{ matrix.env }}.config
 
       - name: Terraform Plan
-        run: terraform plan -var-file=${{ matrix.env }}.tfvars
+        working-directory: terraform
+        run: terraform plan -var-file=env/${{ matrix.env }}.tfvars
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var-file=${{ matrix.env }}.tfvars
+        working-directory: terraform
+        run: terraform apply -auto-approve -var-file=env/${{ matrix.env }}.tfvars
 

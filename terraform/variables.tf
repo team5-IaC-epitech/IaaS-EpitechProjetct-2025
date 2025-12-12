@@ -25,7 +25,7 @@ variable "cidr_block" {
 variable "cluster_name" {
   description = "Name of the GKE cluster"
   type        = string
-  default = "team5-gke-cluster"
+  default     = "team5-gke-cluster"
 }
 
 variable "environment" {
