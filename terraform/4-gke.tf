@@ -37,6 +37,7 @@ resource "google_container_cluster" "primary" {
 
   network_policy {
     enabled = true
+    provider = "CALICO"
   }
   logging_config {
     enable_components = ["SYSTEM_COMPONENTS", "WORKLOADS"]
@@ -44,8 +45,5 @@ resource "google_container_cluster" "primary" {
 
   monitoring_config {
     enable_components = ["SYSTEM_COMPONENTS"]
-    managed_prometheus {
-      enabled = true
-    }
   }
 }
