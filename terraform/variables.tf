@@ -61,7 +61,7 @@ variable "machine_type" {
 variable "disk_size_gb" {
   description = "Disk size for GKE nodes in GB"
   type        = number
-  default     = 1
+  default     = 10
 }
 
 variable "disk_type" {
