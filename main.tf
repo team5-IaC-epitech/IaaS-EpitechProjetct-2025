@@ -54,6 +54,17 @@ resource "google_container_cluster" "autopilot" {
   deletion_protection = false
 }
 
+resource "google_sql_database_instance" "dev-db" {
+  name = "team5-dev-sqldb"
+  region = var.region
+  database_version = "SQLSERVER_2019_STANDARD"
+  root_password = "team5-dev-pass"
+  settings {
+    tier = "db-custom-2-7680"
+  }
+  deletion_protection = false
+}
+
 output "vpc_id" {
   value = google_compute_network.vpc_network.id
 }
