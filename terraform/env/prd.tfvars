@@ -1,4 +1,4 @@
-project_id  = "iaasepitech"
+project_id  = "epitech-iaas-prod"
 region      = "europe-west9"
 vpc_name = "team5-vpc-prd"
 cidr_block  = "10.0.0.0/20"
