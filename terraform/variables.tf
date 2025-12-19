@@ -34,50 +34,55 @@ variable "environment" {
   default     = "dev"
 }
 
-variable "node_count" {
-  description = "Number of nodes in the GKE cluster"
-  type        = number
-  default     = 2
-}
-
-variable "min_node_count" {
-  description = "Minimum number of nodes in the GKE cluster"
-  type        = number
-  default     = 1
-}
-
-variable "max_node_count" {
-  description = "Maximum number of nodes in the GKE cluster"
-  type        = number
-  default     = 5
-}
-
-variable "machine_type" {
-  description = "Machine type for GKE nodes"
-  type        = string
-  default     = "e2-standard-2  "
-}
-
-variable "disk_size_gb" {
-  description = "Disk size for GKE nodes in GB"
-  type        = number
-  default     = 50
-}
-
 variable "disk_type" {
   description = "Disk type for GKE nodes"
   type        = string
   default     = "pd-balanced"
 }
 
-variable "preemptible" {
-  description = "Whether to use preemptible VMs for GKE nodes"
-  type        = bool
-  default     = false
+variable "runners_pool_machine_type" {
+  description = "Machine type for runners pool nodes"
+  type        = string
+  default     = "e2-standard-4"
 }
 
-variable "create_system_node_pool" {
-  description = "Whether to create a system node pool"
-  type        = bool
-  default     = false
+variable "runners_pool_min_nodes" {
+  description = "Minimum number of nodes in runners pool"
+  type        = number
+  default     = 1
 }
+
+variable "runners_pool_max_nodes" {
+  description = "Maximum number of nodes in runners pool"
+  type        = number
+  default     = 5
+}
+
+variable "app_pool_min_nodes" {
+  description = "Minimum number of nodes in application pool"
+  type        = number
+  default     = 2
+}
+
+variable "app_pool_max_nodes" {
+  description = "Maximum number of nodes in application pool"
+  type        = number
+  default     = 10
+}
+
+variable "pods_range_name" {
+  description = "Name of the secondary IP range"
+  type        = string
+}
+
+variable "services_range_name" {
+  description = "Name of the secondary IP range for services"
+  type        = string
+}
+
+variable "app_pool_machine_type" {
+  description = "Machine type for application pool nodes"
+  type        = string
+  default     = "e2-medium"
+}
+
