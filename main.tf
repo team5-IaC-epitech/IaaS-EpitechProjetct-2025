@@ -63,9 +63,9 @@ output "subnet_id" {
 }
 
 output "cluster_name" {
-  value = google_container_cluster.autopilot.name
+  value = google_container_cluster.cluster-autopilot.name
 }
 
 output "endpoint" {
-  value = google_container_cluster.autopilot.endpoint
+  value = google_container_cluster.cluster-autopilot.endpoint
 }
