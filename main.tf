@@ -38,7 +38,7 @@ resource "google_compute_subnetwork" "vpc_subnet" {
   }
 }
 
-resource "google_container_cluster" "autopilot" {
+resource "google_container_cluster" "cluster-autopilot" {
   name = var.cluster_name
   location = var.region
   enable_autopilot = true
