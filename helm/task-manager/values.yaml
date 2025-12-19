@@ -14,9 +14,12 @@ ingress:
   enabled: true
   className: "gce"
   host: "task-manager.example.com"
-  tls:
-    enabled: true
-    secretName: "task-manager-tls" # if using cert-manager; otherwise adapt for GKE managed cert
+
+  # GKE managed certificate (cloud-native)
+  managedCertificate: true
+
+  # Force HTTPS
+  allowHttp: false
 
 resources:
   requests:
@@ -51,4 +54,3 @@ otel:
   enabled: false
   endpoint: "otel-collector.observability.svc.cluster.local:4317"
   insecure: "true"
-  

@@ -7,13 +7,9 @@ metadata:
     {{- include "task-manager.labels" . | nindent 4 }}
   annotations:
     kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+    networking.gke.io/managed-certificates: {{ include "task-manager.fullname" . }}-cert
+    kubernetes.io/ingress.allow-http: "{{ .Values.ingress.allowHttp }}"
 spec:
-  {{- if .Values.ingress.tls.enabled }}
-  tls:
-    - hosts:
-        - {{ .Values.ingress.host | quote }}
-      secretName: {{ .Values.ingress.tls.secretName | quote }}
-  {{- end }}
   rules:
     - host: {{ .Values.ingress.host | quote }}
       http:
