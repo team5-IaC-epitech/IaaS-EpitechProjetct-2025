@@ -36,7 +36,9 @@ jobs:
       uses: hashicorp/setup-terraform@v2
 
     - name: Init Terraform
-      run: terraform init -backend-config=backends/${{ matrix.env }}.config
+      working-directory: terraform
+      run: terraform init -backend-config=../backends/${{ matrix.env }}.config
 
     - name: Terraform Destroy
-      run: terraform destroy -auto-approve -var-file=${{ matrix.env }}.tfvars
+      working-directory: terraform
+      run: terraform destroy -auto-approve -var-file=env/${{ matrix.env }}.tfvars
