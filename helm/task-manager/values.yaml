@@ -1,0 +1,54 @@
+replicaCount: 2
+
+image:
+  repository: task-manager
+  tag: dev
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: "gce"
+  host: "task-manager.example.com"
+  tls:
+    enabled: true
+    secretName: "task-manager-tls" # if using cert-manager; otherwise adapt for GKE managed cert
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+env:
+  serviceName: "task-manager"
+  envName: "dev"
+
+# These MUST come from Kubernetes Secrets in real usage.
+secrets:
+  databaseUrlSecretName: "task-manager-secrets"
+  databaseUrlSecretKey: "DATABASE_URL"
+  jwtSecretSecretName: "task-manager-secrets"
+  jwtSecretSecretKey: "JWT_HS256_SECRET"
+
+otel:
+  enabled: false
+  endpoint: "otel-collector.observability.svc.cluster.local:4317"
+  insecure: "true"
+  
