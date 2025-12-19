@@ -21,3 +21,8 @@ variable "cidr_block" {
   description = "CIDR block for the VPC"
   default     = "10.0.1.0/24"
 }
+
+variable "cluster_name" {
+  type = string
+  description = "GKE Autopilot cluster name"
+}
