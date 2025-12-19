@@ -13,7 +13,31 @@ variable "region" {
 variable "vpc_name" {
   type        = string
   description = "Name of the VPC"
-  default     = "vpc-iaas"
+  default     = "team5-vpc-dev"
+}
+
+variable "nat_subnet_name" {
+  type        = string
+  description = "Name of the subnet for NAT"
+  default     = "team5-nat-subnet-dev"
+}
+
+variable "gke_subnet_name" {
+  type        = string
+  description = "Name of the subnet for GKE"
+  default     = "team5-gke-subnet-dev"
+}
+
+variable "router_name" {
+  type        = string
+  description = "Name of the router"
+  default     = "team5-router-dev"
+}
+
+variable "nat_name" {
+  type        = string
+  description = "Name of the NAT"
+  default     = "team5-nat-dev"
 }
 
 variable "cidr_block" {
@@ -25,7 +49,7 @@ variable "cidr_block" {
 variable "cluster_name" {
   description = "Name of the GKE cluster"
   type        = string
-  default     = "team5-gke-cluster"
+  default     = "team5-gke-cluster-dev"
 }
 
 variable "environment" {
@@ -86,3 +110,44 @@ variable "app_pool_machine_type" {
   default     = "e2-medium"
 }
 
+variable "create_system_node_pool" {
+  description = "Boolean to create a system node pool"
+  type        = bool
+  default     = false
+}
+
+variable "min_node_count" {
+  description = "Minimum number of nodes in the Node Pool"
+  type        = number
+  default     = 1
+}
+
+variable "max_node_count" {
+  description = "Maximum number of nodes in the Node Pool"
+  type        = number
+  default     = 5
+}
+
+variable "node_count" {
+  description = "Number of nodes in the Node Pool"
+  type        = number
+  default     = 2
+}
+
+variable "machine_type" {
+  description = "Machine type for GKE nodes"
+  type        = string
+  default     = "e2-medium"
+}
+
+variable "disk_size_gb" {
+  description = "Disk size in GB for GKE nodes"
+  type        = number
+  default     = 10
+}
+
+variable "preemptible" {
+  description = "Boolean to use preemptible VMs for GKE nodes"
+  type        = bool
+  default     = false
+}

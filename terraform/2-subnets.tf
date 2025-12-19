@@ -1,8 +1,17 @@
-resource "google_compute_subnetwork" "vpc_subnet" {
-  name          = "${var.vpc_name}-subnet"
-  ip_cidr_range = var.cidr_block
-  network       = google_compute_network.vpc_network.id
-  region        = var.region
+resource "google_compute_subnetwork" "public_subnet" {
+  name                     = var.nat_subnet_name
+  ip_cidr_range            = "10.0.0.0/24"
+  network                  = google_compute_network.vpc_network.id
+  region                   = var.region
+  private_ip_google_access = true
+}
+
+resource "google_compute_subnetwork" "private_subnet" {
+  name                     = var.gke_subnet_name
+  ip_cidr_range            = "10.0.1.0/24"
+  network                  = google_compute_network.vpc_network.id
+  region                   = var.region
+  private_ip_google_access = true
 
   secondary_ip_range {
     range_name    = "pods-range"
