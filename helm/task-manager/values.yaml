@@ -1,8 +1,8 @@
 replicaCount: 2
 
 image:
-  repository: task-manager
-  tag: dev
+  repository: europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager
+  tag: latest
   pullPolicy: IfNotPresent
 
 service:
@@ -43,12 +43,18 @@ env:
   serviceName: "task-manager"
   envName: "dev"
 
-# These MUST come from Kubernetes Secrets in real usage.
+# GCP Configuration for Workload Identity and Secret Manager
+gcp:
+  projectId: "iaasepitech"
+  workloadIdentityServiceAccount: "team5-gke-cluster-app-dev@iaasepitech.iam.gserviceaccount.com"
+
+# Secret Manager secret names (managed by Terraform)
 secrets:
-  databaseUrlSecretName: "task-manager-secrets"
-  databaseUrlSecretKey: "DATABASE_URL"
-  jwtSecretSecretName: "task-manager-secrets"
-  jwtSecretSecretKey: "JWT_HS256_SECRET"
+  databaseUrlSecretName: "task-manager-database-url-dev"
+  jwtSecretSecretName: "task-manager-jwt-secret-dev"
+
+csi:
+  enabled: true
 
 otel:
   enabled: false

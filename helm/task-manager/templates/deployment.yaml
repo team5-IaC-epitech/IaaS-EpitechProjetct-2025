@@ -15,9 +15,19 @@ spec:
       labels:
         {{- include "task-manager.labels" . | nindent 8 }}
     spec:
+      serviceAccountName: {{ include "task-manager.fullname" . }}
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "task-manager.fullname" . }}-secrets
+
       containers:
         - name: api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -25,6 +35,11 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
 
           env:
             - name: PORT
@@ -34,17 +49,18 @@ spec:
             - name: ENV
               value: {{ .Values.env.envName | quote }}
 
+            # Secrets synced by CSI driver to Kubernetes Secret
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.databaseUrlSecretName }}
-                  key: {{ .Values.secrets.databaseUrlSecretKey }}
+                  name: {{ include "task-manager.fullname" . }}-secrets
+                  key: DATABASE_URL
 
             - name: JWT_HS256_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.jwtSecretSecretName }}
-                  key: {{ .Values.secrets.jwtSecretSecretKey }}
+                  name: {{ include "task-manager.fullname" . }}-secrets
+                  key: JWT_HS256_SECRET
 
             {{- if .Values.otel.enabled }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -57,7 +73,7 @@ spec:
             httpGet:
               path: /readyz
               port: http
-            initialDelaySeconds: 2
+            initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 2
             failureThreshold: 6
@@ -66,7 +82,7 @@ spec:
             httpGet:
               path: /healthz
               port: http
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 2
             failureThreshold: 3
