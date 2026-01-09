@@ -10,10 +10,6 @@ output "private_subnet_id" {
   value = google_compute_subnetwork.private_subnet.id
 }
 
-output "private_subnet_id" {
-  value = google_compute_subnetwork.private_subnet.id
-}
-
 # output "cluster_name" {
 #   value       = google_container_cluster.primary.name
 #   description = "The name of the GKE cluster"
