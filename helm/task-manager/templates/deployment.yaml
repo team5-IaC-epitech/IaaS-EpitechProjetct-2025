@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "task-manager.fullname" . }}
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "task-manager.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "task-manager.labels" . | nindent 8 }}
+      annotations:
+        # Force pod restart when config changes
+        checksum/config: {{ include (print $.Template.BasePath "/secretproviderclass.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "task-manager.fullname" . }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store-gke.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "task-manager.fullname" . }}-secrets
+
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Wrap the application with shell to load secrets from CSI mount
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Starting application..."
+              echo "Checking secrets mount..."
+              ls -la /mnt/secrets-store/ || echo "ERROR: Cannot list secrets-store"
+
+              echo "Reading DATABASE_URL..."
+              if [ -f /mnt/secrets-store/DATABASE_URL ]; then
+                export DATABASE_URL=$(cat /mnt/secrets-store/DATABASE_URL)
+                echo "DATABASE_URL loaded successfully"
+              else
+                echo "ERROR: DATABASE_URL file not found"
+                exit 1
+              fi
+
+              echo "Reading JWT_HS256_SECRET..."
+              if [ -f /mnt/secrets-store/JWT_HS256_SECRET ]; then
+                export JWT_HS256_SECRET=$(cat /mnt/secrets-store/JWT_HS256_SECRET)
+                echo "JWT_HS256_SECRET loaded successfully"
+              else
+                echo "ERROR: JWT_HS256_SECRET file not found"
+                exit 1
+              fi
+
+              echo "All secrets loaded. Starting application..."
+              exec /app/api
+          ports:
+            - name: http
+              containerPort: 8080
+
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+
+          env:
+            - name: PORT
+              value: "8080"
+            - name: SERVICE_NAME
+              value: {{ .Values.env.serviceName | quote }}
+            - name: ENV
+              value: {{ .Values.env.envName | quote }}
+
+            {{- if .Values.otel.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+            - name: OTEL_EXPORTER_OTLP_INSECURE
+              value: {{ .Values.otel.insecure | quote }}
+            {{- end }}
+
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 6
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            capabilities:
+              drop: ["ALL"]

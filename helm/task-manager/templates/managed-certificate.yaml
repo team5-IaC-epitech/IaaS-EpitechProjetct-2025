@@ -1,0 +1,11 @@
+{{- if and .Values.ingress.enabled .Values.ingress.host .Values.ingress.managedCertificate }}
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: {{ include "task-manager.fullname" . }}-cert
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ .Values.ingress.host }}
+{{- end }}

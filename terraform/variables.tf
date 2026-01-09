@@ -97,11 +97,13 @@ variable "app_pool_max_nodes" {
 variable "pods_range_name" {
   description = "Name of the secondary IP range"
   type        = string
+  default     = "pods-range"
 }
 
 variable "services_range_name" {
   description = "Name of the secondary IP range for services"
   type        = string
+  default     = "services-range"
 }
 
 variable "app_pool_machine_type" {
@@ -150,4 +152,36 @@ variable "preemptible" {
   description = "Boolean to use preemptible VMs for GKE nodes"
   type        = bool
   default     = false
+}
+
+# Cloud SQL variables
+variable "cloudsql_tier" {
+  description = "Cloud SQL instance tier"
+  type        = string
+  default     = "db-f1-micro"
+}
+
+variable "cloudsql_disk_size" {
+  description = "Cloud SQL disk size in GB"
+  type        = number
+  default     = 10
+}
+
+variable "cloudsql_database_name" {
+  description = "Cloud SQL database name"
+  type        = string
+  default     = "taskmanager"
+}
+
+variable "cloudsql_user_name" {
+  description = "Cloud SQL user name"
+  type        = string
+  default     = "taskmanager"
+}
+
+# Application variables
+variable "app_name" {
+  description = "Application name"
+  type        = string
+  default     = "task-manager"
 }

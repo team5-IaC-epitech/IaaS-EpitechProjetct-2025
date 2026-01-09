@@ -1,0 +1,69 @@
+replicaCount: 2
+
+image:
+  repository: europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: "gce"
+
+  # Static IP configuration (set by Terraform)
+  staticIpName: ""
+  staticIp: ""
+
+  # Domain configuration - set to empty string "" to disable managed certificate
+  # and use direct IP access. Set your domain (e.g., "api.yourdomain.com") to enable HTTPS
+  host: ""
+
+  # GKE managed certificate (enabled automatically when host is set)
+  managedCertificate: true
+
+  # Allow HTTP access (useful when testing with IP only)
+  allowHttp: true
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+env:
+  serviceName: "task-manager"
+  envName: "dev"
+
+# GCP Configuration for Workload Identity and Secret Manager
+gcp:
+  projectId: "iaasepitech"
+  workloadIdentityServiceAccount: "team5-gke-cluster-app-dev@iaasepitech.iam.gserviceaccount.com"
+
+# Secret Manager secret names (managed by Terraform)
+secrets:
+  databaseUrlSecretName: "task-manager-database-url-dev"
+  jwtSecretSecretName: "task-manager-jwt-secret-dev"
+
+csi:
+  enabled: true
+
+otel:
+  enabled: false
+  endpoint: "otel-collector.observability.svc.cluster.local:4317"
+  insecure: "true"
