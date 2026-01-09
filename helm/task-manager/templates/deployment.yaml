@@ -14,6 +14,9 @@ spec:
     metadata:
       labels:
         {{- include "task-manager.labels" . | nindent 8 }}
+      annotations:
+        # Force pod restart when config changes
+        checksum/config: {{ include (print $.Template.BasePath "/secretproviderclass.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "task-manager.fullname" . }}
       securityContext:
@@ -32,6 +35,36 @@ spec:
         - name: api
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Wrap the application with shell to load secrets from CSI mount
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Starting application..."
+              echo "Checking secrets mount..."
+              ls -la /mnt/secrets-store/ || echo "ERROR: Cannot list secrets-store"
+
+              echo "Reading DATABASE_URL..."
+              if [ -f /mnt/secrets-store/DATABASE_URL ]; then
+                export DATABASE_URL=$(cat /mnt/secrets-store/DATABASE_URL)
+                echo "DATABASE_URL loaded successfully"
+              else
+                echo "ERROR: DATABASE_URL file not found"
+                exit 1
+              fi
+
+              echo "Reading JWT_HS256_SECRET..."
+              if [ -f /mnt/secrets-store/JWT_HS256_SECRET ]; then
+                export JWT_HS256_SECRET=$(cat /mnt/secrets-store/JWT_HS256_SECRET)
+                echo "JWT_HS256_SECRET loaded successfully"
+              else
+                echo "ERROR: JWT_HS256_SECRET file not found"
+                exit 1
+              fi
+
+              echo "All secrets loaded. Starting application..."
+              exec /app/api
           ports:
             - name: http
               containerPort: 8080
@@ -48,19 +81,6 @@ spec:
               value: {{ .Values.env.serviceName | quote }}
             - name: ENV
               value: {{ .Values.env.envName | quote }}
-
-            # Secrets synced by CSI driver to Kubernetes Secret
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "task-manager.fullname" . }}-secrets
-                  key: DATABASE_URL
-
-            - name: JWT_HS256_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "task-manager.fullname" . }}-secrets
-                  key: JWT_HS256_SECRET
 
             {{- if .Values.otel.enabled }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT

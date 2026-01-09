@@ -3,7 +3,7 @@ replicaCount: 2
 image:
   repository: europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 service:
   type: ClusterIP
