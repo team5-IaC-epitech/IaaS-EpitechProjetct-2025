@@ -1,6 +1,6 @@
 resource "google_container_cluster" "primary" {
   name             = var.cluster_name
-  location         = substr("${var.region}-a", 0, 63)
+  location         = var.region # substr("${var.region}-a", 0, 63)
   network          = google_compute_network.vpc_network.id
   subnetwork       = google_compute_subnetwork.private_subnet.id
   enable_autopilot = true
