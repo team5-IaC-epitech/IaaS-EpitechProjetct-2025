@@ -32,7 +32,8 @@ resource "google_secret_manager_secret_version" "database_url" {
   secret = google_secret_manager_secret.database_url.id
 
   # Format: postgres://user:pass@host:5432/db?sslmode=require
-  secret_data = "postgres://${google_sql_user.db_user.name}:${random_password.db_password.result}@${google_sql_database_instance.postgres.private_ip_address}:5432/${google_sql_database.database.name}?sslmode=require"
+  # URL-encode the password to handle special characters
+  secret_data = "postgres://${google_sql_user.db_user.name}:${urlencode(random_password.db_password.result)}@${google_sql_database_instance.postgres.private_ip_address}:5432/${google_sql_database.database.name}?sslmode=require"
 }
 
 resource "google_secret_manager_secret_version" "jwt_secret" {

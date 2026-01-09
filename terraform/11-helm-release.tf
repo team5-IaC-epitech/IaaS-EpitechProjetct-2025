@@ -7,7 +7,7 @@ resource "helm_release" "task_manager" {
   # Wait for resources to be ready
   wait          = true
   wait_for_jobs = true
-  timeout       = 600 # 10 minutes
+  timeout       = 300 # 5 minutes
 
   # Override values using set blocks
   set {
@@ -45,6 +45,7 @@ resource "helm_release" "task_manager" {
     google_sql_database_instance.postgres,
     google_secret_manager_secret_version.database_url,
     google_secret_manager_secret_version.jwt_secret,
-    google_service_account_iam_member.workload_identity_binding
+    google_service_account_iam_member.workload_identity_binding,
+    null_resource.build_and_push_image
   ]
 }
