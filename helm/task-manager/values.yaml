@@ -13,13 +13,20 @@ service:
 ingress:
   enabled: true
   className: "gce"
-  host: "task-manager.example.com"
 
-  # GKE managed certificate (cloud-native)
+  # Static IP configuration (set by Terraform)
+  staticIpName: ""
+  staticIp: ""
+
+  # Domain configuration - set to empty string "" to disable managed certificate
+  # and use direct IP access. Set your domain (e.g., "api.yourdomain.com") to enable HTTPS
+  host: ""
+
+  # GKE managed certificate (enabled automatically when host is set)
   managedCertificate: true
 
-  # Force HTTPS
-  allowHttp: false
+  # Allow HTTP access (useful when testing with IP only)
+  allowHttp: true
 
 resources:
   requests:

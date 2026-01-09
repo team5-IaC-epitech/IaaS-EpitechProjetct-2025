@@ -7,10 +7,17 @@ metadata:
     {{- include "task-manager.labels" . | nindent 4 }}
   annotations:
     kubernetes.io/ingress.class: {{ .Values.ingress.className | quote }}
+    {{- if .Values.ingress.staticIpName }}
+    kubernetes.io/ingress.global-static-ip-name: {{ .Values.ingress.staticIpName | quote }}
+    {{- end }}
+    {{- if and .Values.ingress.host .Values.ingress.managedCertificate }}
     networking.gke.io/managed-certificates: {{ include "task-manager.fullname" . }}-cert
+    ingress.gcp.kubernetes.io/pre-shared-cert: {{ include "task-manager.fullname" . }}-cert
+    {{- end }}
     kubernetes.io/ingress.allow-http: "{{ .Values.ingress.allowHttp }}"
 spec:
   rules:
+    {{- if .Values.ingress.host }}
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
@@ -21,4 +28,15 @@ spec:
                 name: {{ include "task-manager.fullname" . }}
                 port:
                   number: {{ .Values.service.port }}
+    {{- else }}
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "task-manager.fullname" . }}
+                port:
+                  number: {{ .Values.service.port }}
+    {{- end }}
 {{- end }}
