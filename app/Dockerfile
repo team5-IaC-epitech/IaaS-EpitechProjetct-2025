@@ -15,7 +15,12 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o
 
 
 # ---- runtime stage ----
-FROM gcr.io/distroless/base-debian12
+FROM alpine:3.19
+
+# Install ca-certificates for HTTPS
+RUN apk add --no-cache ca-certificates tzdata && \
+    addgroup -g 65532 -S nonroot && \
+    adduser -u 65532 -S nonroot -G nonroot
 
 WORKDIR /app
 
