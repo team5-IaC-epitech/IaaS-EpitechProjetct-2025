@@ -69,3 +69,14 @@ output "gke_workload_sa_email" {
   value       = google_service_account.gke_workload.email
   description = "GKE workload identity service account email"
 }
+
+# Ingress outputs
+output "ingress_ip" {
+  value       = google_compute_global_address.ingress.address
+  description = "Static IP address for the ingress load balancer"
+}
+
+output "ingress_ip_name" {
+  value       = google_compute_global_address.ingress.name
+  description = "Name of the static IP resource for ingress"
+}

@@ -18,3 +18,13 @@ resource "google_service_networking_connection" "private_vpc_connection" {
 
   depends_on = [google_project_service.required_apis]
 }
+
+# Reserve global static IP for ingress load balancer
+resource "google_compute_global_address" "ingress" {
+  name         = "${var.app_name}-ingress-ip-${var.environment}"
+  project      = var.project_id
+  address_type = "EXTERNAL"
+  ip_version   = "IPV4"
+
+  depends_on = [google_project_service.required_apis]
+}

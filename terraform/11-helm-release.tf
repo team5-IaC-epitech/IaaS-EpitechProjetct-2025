@@ -40,12 +40,23 @@ resource "helm_release" "task_manager" {
     value = google_secret_manager_secret.jwt_secret.secret_id
   }
 
+  set {
+    name  = "ingress.staticIpName"
+    value = google_compute_global_address.ingress.name
+  }
+
+  set {
+    name  = "ingress.staticIp"
+    value = google_compute_global_address.ingress.address
+  }
+
   depends_on = [
     google_container_cluster.primary,
     google_sql_database_instance.postgres,
     google_secret_manager_secret_version.database_url,
     google_secret_manager_secret_version.jwt_secret,
     google_service_account_iam_member.workload_identity_binding,
-    null_resource.build_and_push_image
+    null_resource.build_and_push_image,
+    google_compute_global_address.ingress
   ]
 }
