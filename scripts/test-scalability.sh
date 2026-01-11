@@ -1,54 +1,54 @@
 #!/bin/bash
 
 # ============================================================================
-# Script de Test de Scalabilité GKE
+# GKE Scalability Test Script
 # ============================================================================
 #
-# Ce script teste l'autoscaling horizontal (HPA) de votre cluster GKE
-# en générant une charge contrôlée et en monitorant la création de pods.
+# This script tests horizontal pod autoscaling (HPA) of your GKE cluster
+# by generating controlled load and monitoring pod creation.
 #
 # USAGE:
-#   ./test-scalability.sh                    # Test interactif par défaut
+#   ./test-scalability.sh                    # Interactive test (default)
 #   REQUESTS=15000 CONCURRENCY=80 DURATION=300 ./test-scalability.sh
 #
-# EXEMPLES:
+# EXAMPLES:
 #
-#   Test léger (1-2 pods attendus):
+#   Light test (1-2 pods expected):
 #     REQUESTS=5000 CONCURRENCY=20 DURATION=120 ./test-scalability.sh
 #
-#   Test moyen (3-5 pods attendus):
+#   Medium test (3-5 pods expected):
 #     REQUESTS=10000 CONCURRENCY=50 DURATION=300 ./test-scalability.sh
 #
-#   Test intensif (6-10 pods attendus):
+#   Heavy test (6-10 pods expected):
 #     REQUESTS=20000 CONCURRENCY=100 DURATION=600 ./test-scalability.sh
 #
-# VARIABLES D'ENVIRONNEMENT:
-#   INGRESS_IP     - IP du load balancer (défaut: 136.110.213.157)
-#   ENDPOINT       - Endpoint à tester (défaut: /healthz)
-#   REQUESTS       - Nombre total de requêtes (défaut: 10000)
-#   CONCURRENCY    - Requêtes simultanées (défaut: 50)
-#   DURATION       - Durée du test en secondes (défaut: 300)
+# ENVIRONMENT VARIABLES:
+#   INGRESS_IP     - Load balancer IP (default: 136.110.213.157)
+#   ENDPOINT       - Endpoint to test (default: /healthz)
+#   REQUESTS       - Total number of requests (default: 10000)
+#   CONCURRENCY    - Concurrent requests (default: 50)
+#   DURATION       - Test duration in seconds (default: 300)
 #
-# PRÉREQUIS:
-#   - kubectl configuré et connecté au cluster
-#   - Accès au cluster GKE: gcloud container clusters get-credentials ...
-#   - L'outil 'hey' sera installé automatiquement si nécessaire
+# PREREQUISITES:
+#   - kubectl configured and connected to cluster
+#   - Cluster access: gcloud container clusters get-credentials ...
+#   - Tool 'hey' will be installed automatically if needed
 #
-# MONITORING EN PARALLÈLE:
-#   Dans un autre terminal, lancez:
+# PARALLEL MONITORING:
+#   In another terminal, run:
 #     watch -n 2 'kubectl get hpa,pods -l app.kubernetes.io/name=task-manager'
 #
-# RÉSULTATS ATTENDUS:
-#   - Pods scale automatiquement de 1 → N selon la charge
-#   - HPA réagit quand CPU > 70% ou Memory > 70%
-#   - Performance stable avec temps de réponse < 100ms (p95)
-#   - Après le test, scale-down automatique après ~5 minutes
+# EXPECTED RESULTS:
+#   - Pods scale automatically from 1 → N based on load
+#   - HPA reacts when CPU > 70% or Memory > 70%
+#   - Stable performance with response time < 100ms (p95)
+#   - After test, automatic scale-down after ~5 minutes
 #
 # ============================================================================
 
 set -e
 
-# Couleurs pour l'affichage
+# Display colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -61,36 +61,36 @@ ENDPOINT="${ENDPOINT:-/healthz}"
 DEPLOYMENT_NAME="task-manager"
 NAMESPACE="default"
 
-# Paramètres de test (modifiables via variables d'environnement)
-REQUESTS="${REQUESTS:-10000}"        # Nombre total de requêtes
-CONCURRENCY="${CONCURRENCY:-50}"     # Requêtes simultanées
-DURATION="${DURATION:-300}"          # Durée du test en secondes (5min par défaut)
+# Test parameters (customizable via environment variables)
+REQUESTS="${REQUESTS:-10000}"        # Total number of requests
+CONCURRENCY="${CONCURRENCY:-50}"     # Concurrent requests
+DURATION="${DURATION:-300}"          # Test duration in seconds (5min default)
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  Test de Scalabilité GKE - Task Manager${NC}"
+echo -e "${BLUE}  GKE Scalability Test - Task Manager${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
-# Fonction pour afficher l'état du cluster
+# Function to display cluster state
 show_cluster_state() {
-    echo -e "${YELLOW}État actuel du cluster:${NC}"
+    echo -e "${YELLOW}Current cluster state:${NC}"
     kubectl get pods -l app.kubernetes.io/name=task-manager -o wide
     echo ""
-    kubectl get hpa task-manager 2>/dev/null || echo "HPA non trouvé"
+    kubectl get hpa task-manager 2>/dev/null || echo "HPA not found"
     echo ""
 }
 
-# Fonction pour installer l'outil de load testing
+# Function to install load testing tool
 install_load_tool() {
     if ! command -v hey &> /dev/null; then
-        echo -e "${YELLOW}Installation de 'hey' (outil de load testing)...${NC}"
+        echo -e "${YELLOW}Installing 'hey' (load testing tool)...${NC}"
 
         if [[ "$OSTYPE" == "darwin"* ]]; then
             # macOS
             if command -v brew &> /dev/null; then
                 brew install hey
             else
-                echo -e "${RED}Homebrew non installé. Installation manuelle...${NC}"
+                echo -e "${RED}Homebrew not installed. Manual installation...${NC}"
                 curl -sL https://github.com/rakyll/hey/releases/download/v0.1.4/hey_darwin_amd64 -o /tmp/hey
                 chmod +x /tmp/hey
                 sudo mv /tmp/hey /usr/local/bin/hey
@@ -102,14 +102,14 @@ install_load_tool() {
             sudo mv /tmp/hey /usr/local/bin/hey
         fi
 
-        echo -e "${GREEN}✓ 'hey' installé avec succès${NC}"
+        echo -e "${GREEN}✓ 'hey' successfully installed${NC}"
         echo ""
     fi
 }
 
-# Fonction de monitoring en temps réel
+# Function for real-time monitoring
 monitor_scaling() {
-    echo -e "${BLUE}Monitoring de l'autoscaling (Ctrl+C pour arrêter)...${NC}"
+    echo -e "${BLUE}Monitoring autoscaling (Ctrl+C to stop)...${NC}"
     echo ""
 
     local start_time=$(date +%s)
@@ -121,12 +121,12 @@ monitor_scaling() {
         local elapsed=$((current_time - start_time))
 
         echo -e "${BLUE}========================================${NC}"
-        echo -e "${BLUE}  Monitoring - ${elapsed}s écoulées${NC}"
+        echo -e "${BLUE}  Monitoring - ${elapsed}s elapsed${NC}"
         echo -e "${BLUE}========================================${NC}"
         echo ""
 
-        # Afficher les pods
-        echo -e "${YELLOW}Pods actifs:${NC}"
+        # Display pods
+        echo -e "${YELLOW}Active pods:${NC}"
         local pod_count=$(kubectl get pods -l app.kubernetes.io/name=task-manager -o json | jq '[.items[] | select(.status.phase=="Running")] | length')
         kubectl get pods -l app.kubernetes.io/name=task-manager -o custom-columns=\
 NAME:.metadata.name,\
@@ -137,104 +137,104 @@ MEMORY:.spec.containers[0].resources.requests.memory,\
 NODE:.spec.nodeName
 
         echo ""
-        echo -e "${GREEN}Nombre de pods Running: $pod_count${NC}"
+        echo -e "${GREEN}Running pods count: $pod_count${NC}"
 
         if [ "$pod_count" -gt "$max_pods" ]; then
             max_pods=$pod_count
         fi
-        echo -e "${GREEN}Maximum de pods atteint: $max_pods${NC}"
+        echo -e "${GREEN}Maximum pods reached: $max_pods${NC}"
 
         echo ""
 
-        # Afficher HPA
+        # Display HPA
         echo -e "${YELLOW}Horizontal Pod Autoscaler:${NC}"
-        kubectl get hpa task-manager 2>/dev/null || echo "HPA non disponible"
+        kubectl get hpa task-manager 2>/dev/null || echo "HPA not available"
 
         echo ""
 
-        # Afficher les métriques
-        echo -e "${YELLOW}Métriques des pods:${NC}"
-        kubectl top pods -l app.kubernetes.io/name=task-manager 2>/dev/null || echo "Métriques non disponibles (attendez ~30s après le démarrage)"
+        # Display metrics
+        echo -e "${YELLOW}Pods metrics:${NC}"
+        kubectl top pods -l app.kubernetes.io/name=task-manager 2>/dev/null || echo "Metrics not available (wait ~30s after startup)"
 
         sleep 5
     done
 }
 
-# Fonction de test de charge
+# Load test function
 run_load_test() {
     local url="http://${INGRESS_IP}${ENDPOINT}"
 
-    echo -e "${YELLOW}Configuration du test:${NC}"
+    echo -e "${YELLOW}Test configuration:${NC}"
     echo "  URL: $url"
-    echo "  Requêtes totales: $REQUESTS"
-    echo "  Concurrence: $CONCURRENCY"
-    echo "  Durée: ${DURATION}s"
+    echo "  Total requests: $REQUESTS"
+    echo "  Concurrency: $CONCURRENCY"
+    echo "  Duration: ${DURATION}s"
     echo ""
 
-    echo -e "${YELLOW}Démarrage du test de charge...${NC}"
+    echo -e "${YELLOW}Starting load test...${NC}"
     echo ""
 
-    # Lancer le test avec hey
+    # Run test with hey
     hey -n "$REQUESTS" -c "$CONCURRENCY" -z "${DURATION}s" "$url" > /tmp/load_test_results.txt 2>&1
 
-    echo -e "${GREEN}✓ Test de charge terminé${NC}"
+    echo -e "${GREEN}✓ Load test completed${NC}"
     echo ""
 
-    # Afficher les résultats
+    # Display results
     cat /tmp/load_test_results.txt
 }
 
-# Fonction principale
+# Main function
 main() {
-    echo -e "${YELLOW}1. Vérification de l'accès au cluster...${NC}"
+    echo -e "${YELLOW}1. Checking cluster access...${NC}"
     if ! kubectl get pods &> /dev/null; then
-        echo -e "${RED}✗ Impossible d'accéder au cluster Kubernetes${NC}"
-        echo "Exécutez: gcloud container clusters get-credentials team5-gke-cluster --region europe-west9 --project iaasepitech"
+        echo -e "${RED}✗ Unable to access Kubernetes cluster${NC}"
+        echo "Run: gcloud container clusters get-credentials team5-gke-cluster --region europe-west9 --project iaasepitech"
         exit 1
     fi
     echo -e "${GREEN}✓ Cluster accessible${NC}"
     echo ""
 
-    echo -e "${YELLOW}2. État initial du cluster:${NC}"
+    echo -e "${YELLOW}2. Initial cluster state:${NC}"
     show_cluster_state
 
-    echo -e "${YELLOW}3. Vérification de l'accès à l'API...${NC}"
+    echo -e "${YELLOW}3. Checking API access...${NC}"
     if curl -s -f "http://${INGRESS_IP}${ENDPOINT}" > /dev/null; then
-        echo -e "${GREEN}✓ API accessible sur http://${INGRESS_IP}${ENDPOINT}${NC}"
+        echo -e "${GREEN}✓ API accessible at http://${INGRESS_IP}${ENDPOINT}${NC}"
     else
-        echo -e "${RED}✗ API non accessible. Vérifiez l'IP: ${INGRESS_IP}${NC}"
+        echo -e "${RED}✗ API not accessible. Check IP: ${INGRESS_IP}${NC}"
         exit 1
     fi
     echo ""
 
-    # Installer l'outil de test
+    # Install test tool
     install_load_tool
 
-    # Proposer le choix
-    echo -e "${BLUE}Choisissez une option:${NC}"
-    echo "  1) Lancer le test de charge ET le monitoring (recommandé)"
-    echo "  2) Lancer seulement le monitoring"
-    echo "  3) Lancer seulement le test de charge"
+    # Propose options
+    echo -e "${BLUE}Choose an option:${NC}"
+    echo "  1) Run load test AND monitoring (recommended)"
+    echo "  2) Run monitoring only"
+    echo "  3) Run load test only"
     echo ""
-    read -p "Votre choix (1-3): " choice
+    read -p "Your choice (1-3): " choice
 
     case $choice in
         1)
-            # Lancer le monitoring en arrière-plan dans un nouveau terminal
-            echo -e "${YELLOW}Ouverture du monitoring dans un nouveau terminal...${NC}"
+            # Launch monitoring in background in a new terminal
+            echo -e "${YELLOW}Opening monitoring in a new terminal...${NC}"
 
             if [[ "$OSTYPE" == "darwin"* ]]; then
-                # macOS - ouvrir dans un nouveau terminal
+                # macOS - open in new terminal
                 osascript -e "tell app \"Terminal\" to do script \"cd $(pwd) && bash $0 monitor\""
             else
-                # Linux - essayer gnome-terminal ou xterm
+                # Linux - try gnome-terminal or xterm
                 if command -v gnome-terminal &> /dev/null; then
                     gnome-terminal -- bash -c "$0 monitor; exec bash"
                 elif command -v xterm &> /dev/null; then
                     xterm -e "$0 monitor" &
                 else
-                    echo -e "${YELLOW}Impossible d'ouvrir un nouveau terminal automatiquement.${NC}"
-                    echo "Exécutez manuellement dans un autre terminal: $0 monitor"
+                    echo -e "${YELLOW}Unable to open a new terminal automatically.${NC}"
+                    echo "Run manually in another terminal: $0 monitor"
                 fi
             fi
 
@@ -248,21 +248,21 @@ main() {
             run_load_test
             ;;
         *)
-            echo -e "${RED}Choix invalide${NC}"
+            echo -e "${RED}Invalid choice${NC}"
             exit 1
             ;;
     esac
 
     echo ""
     echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}  Test terminé!${NC}"
+    echo -e "${GREEN}  Test completed!${NC}"
     echo -e "${GREEN}========================================${NC}"
     echo ""
-    echo -e "${YELLOW}État final du cluster:${NC}"
+    echo -e "${YELLOW}Final cluster state:${NC}"
     show_cluster_state
 }
 
-# Point d'entrée
+# Entry point
 if [ "$1" = "monitor" ]; then
     monitor_scaling
 else
