@@ -76,3 +76,28 @@ output "ingress_ip_name" {
   value       = google_compute_global_address.ingress.name
   description = "Name of the static IP resource for ingress"
 }
+
+# Monitoring outputs
+output "grafana_url_command" {
+  value       = "kubectl get ingress grafana -n monitoring -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
+  description = "Command to get Grafana URL (wait 5-10 minutes for Load Balancer provisioning)"
+}
+
+output "grafana_credentials" {
+  value = {
+    username = "admin"
+    password = var.grafana_admin_password
+  }
+  description = "Grafana login credentials"
+  sensitive   = true
+}
+
+output "monitoring_status_commands" {
+  value = {
+    check_grafana    = "kubectl get pods -n monitoring"
+    check_prometheus = "kubectl get pods -n gmp-system"
+    check_monitoring = "kubectl get podmonitoring -A"
+    test_metrics     = "kubectl port-forward deployment/task-manager 8080:8080 && curl http://localhost:8080/metrics"
+  }
+  description = "Commands to check monitoring stack status"
+}

@@ -24,14 +24,19 @@ import (
 	migfs "team5/task-manager/db/migrations"
 	"team5/task-manager/internal/config"
 	"team5/task-manager/internal/httpapi"
-	"team5/task-manager/internal/otel"
+	"team5/task-manager/internal/logger"
 )
 
 func main() {
+	// Initialize structured logger
+	logger.Init()
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+
+	logger.Logger.Info("starting task-manager", "service", cfg.ServiceName, "port", cfg.Port)
 
 	sub, err := fs.Sub(migfs.FS, ".")
 	if err != nil {
@@ -63,21 +68,16 @@ func main() {
 		log.Fatalf("migrate up: %v", err)
 	}
 
-	shutdownTracing, err := otel.Init(cfg.ServiceName, cfg.OtelEndpoint, cfg.OtelInsecure)
-	if err != nil {
-		log.Fatalf("otel: %v", err)
-	}
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = shutdownTracing(ctx)
-	}()
+	logger.Logger.Info("database migrations completed")
 
 	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("db: %v", err)
 	}
 	defer pool.Close()
+
+	// Note: Go runtime metrics are automatically collected by Prometheus client library
+	// No need for manual collection goroutine
 
 	handler := httpapi.NewRouter(cfg, pool)
 

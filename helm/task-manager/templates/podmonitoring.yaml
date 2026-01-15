@@ -1,0 +1,15 @@
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: {{ include "task-manager.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "task-manager.selectorLabels" . | nindent 6 }}
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
