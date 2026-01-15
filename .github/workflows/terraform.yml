@@ -3,10 +3,10 @@ name: Terraform CI/CD
 on:
   push:
     branches:
-      - main
+      - master
   pull_request:
     branches:
-      - main
+      - master
   workflow_dispatch:
     inputs:
       runner_type:
@@ -50,15 +50,16 @@ jobs:
         working-directory: terraform
         env:
           TF_VAR_github_app_id: ${{ secrets.GH_APP_ID }}
-          TF_VAR_github_app_installation_id: ${{ secrets.GH_APP_INSTALLATION_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.GH_INSTALLATION_ID }}
           TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
         run: terraform plan -var-file=env/${{ matrix.env }}.tfvars
 
       - name: Terraform Apply
+        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         working-directory: terraform
         env:
           TF_VAR_github_app_id: ${{ secrets.GH_APP_ID }}
-          TF_VAR_github_app_installation_id: ${{ secrets.GH_APP_INSTALLATION_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.GH_INSTALLATION_ID }}
           TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
         run: terraform apply -auto-approve -var-file=env/${{ matrix.env }}.tfvars
 
