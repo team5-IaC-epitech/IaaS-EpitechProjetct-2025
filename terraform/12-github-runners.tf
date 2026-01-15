@@ -72,6 +72,49 @@ resource "helm_release" "arc_controller" {
   ]
 }
 
+# RBAC: Allow ARC controller to access secrets in arc-runners namespace
+resource "kubernetes_role" "arc_controller_secrets" {
+  count = local.deploy_runners ? 1 : 0
+
+  metadata {
+    name      = "arc-controller-secrets"
+    namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["secrets", "pods", "serviceaccounts"]
+    verbs      = ["get", "list", "watch", "create", "update", "patch", "delete"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods/exec"]
+    verbs      = ["create"]
+  }
+}
+
+resource "kubernetes_role_binding" "arc_controller_secrets" {
+  count = local.deploy_runners ? 1 : 0
+
+  metadata {
+    name      = "arc-controller-secrets"
+    namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role.arc_controller_secrets[0].metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "arc-gha-rs-controller"
+    namespace = "arc-system"
+  }
+}
+
 # Runner Scale Set - The actual runners
 resource "helm_release" "arc_runner_set" {
   count = local.deploy_runners ? 1 : 0
@@ -103,6 +146,7 @@ resource "helm_release" "arc_runner_set" {
   depends_on = [
     helm_release.arc_controller,
     kubernetes_secret.github_app_secret,
-    kubernetes_namespace.arc_runners
+    kubernetes_namespace.arc_runners,
+    kubernetes_role_binding.arc_controller_secrets
   ]
 }
