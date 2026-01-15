@@ -79,6 +79,9 @@ func main() {
 	}
 	defer pool.Close()
 
+	// Note: Go runtime metrics are automatically collected by Prometheus client library
+	// No need for manual collection goroutine
+
 	handler := httpapi.NewRouter(cfg, pool)
 
 	srv := &http.Server{

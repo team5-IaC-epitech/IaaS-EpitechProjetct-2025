@@ -49,7 +49,7 @@ variable "cidr_block" {
 variable "cluster_name" {
   description = "Name of the GKE cluster"
   type        = string
-  default     = "team5-gke-cluster-dev"
+  default     = "team5-gke-cluster"
 }
 
 variable "environment" {
@@ -223,4 +223,11 @@ variable "arc_max_runners" {
   description = "Maximum number of runners to scale up to"
   type        = number
   default     = 5
+}
+# Monitoring variables
+variable "grafana_admin_password" {
+  description = "Grafana admin password"
+  type        = string
+  default     = "changeme123"
+  sensitive   = true
 }

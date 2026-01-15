@@ -1,0 +1,108 @@
+grafana:
+  # Admin credentials
+  adminUser: admin
+  adminPassword: "changeme123"  # Change this in production!
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+
+  # Ingress configuration for GCP Load Balancer
+  ingress:
+    enabled: true
+    ingressClassName: gce
+    annotations:
+      kubernetes.io/ingress.class: "gce"
+      kubernetes.io/ingress.allow-http: "true"
+    hosts:
+      - grafana.local
+    path: /
+    pathType: Prefix
+
+  # Persistence
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: standard-rwo
+    size: 10Gi
+
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Datasources - GCP Managed Prometheus
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+        - name: GCP Managed Prometheus
+          type: prometheus
+          url: http://frontend.gmp-system.svc:9090
+          access: proxy
+          isDefault: true
+          editable: true
+          jsonData:
+            timeInterval: 30s
+            httpMethod: POST
+
+  # Dashboard providers
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  # Pre-configured dashboards
+  dashboardsConfigMaps:
+    default: "grafana-dashboards"
+
+  # Security context
+  securityContext:
+    runAsUser: 472
+    runAsGroup: 472
+    fsGroup: 472
+    runAsNonRoot: true
+
+  # Pod security context
+  podSecurityContext:
+    runAsUser: 472
+    runAsGroup: 472
+    fsGroup: 472
+    runAsNonRoot: true
+
+  # Environment variables
+  env:
+    GF_SERVER_ROOT_URL: "http://grafana.local"
+    GF_SECURITY_ADMIN_PASSWORD: "changeme123"
+    GF_USERS_ALLOW_SIGN_UP: "false"
+    GF_AUTH_ANONYMOUS_ENABLED: "false"
+    GF_INSTALL_PLUGINS: ""
+
+  # Readiness and liveness probes
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
