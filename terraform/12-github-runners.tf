@@ -12,6 +12,7 @@ locals {
   )
 }
 
+
 # Namespace for ARC controller
 resource "kubernetes_namespace" "arc_system" {
   count = local.deploy_runners ? 1 : 0
