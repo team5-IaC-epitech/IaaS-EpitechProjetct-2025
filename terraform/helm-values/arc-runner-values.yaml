@@ -1,0 +1,45 @@
+# Actions Runner Controller - Runner Scale Set Values
+# https://github.com/actions/actions-runner-controller
+
+# GitHub repository/organization URL
+githubConfigUrl: "${github_config_url}"
+
+# GitHub App authentication
+githubConfigSecret:
+  github_app_id: "${github_app_id}"
+  github_app_installation_id: "${github_app_installation_id}"
+  # github_app_private_key is set via set_sensitive in Terraform
+
+# Runner scaling configuration
+minRunners: ${min_runners}
+maxRunners: ${max_runners}
+
+# Runner labels - use these in your workflows with runs-on
+runnerGroup: "default"
+
+# Container mode - recommended for GKE Autopilot
+containerMode:
+  type: "dind"  # Docker-in-Docker mode
+
+# Runner pod template
+template:
+  spec:
+    containers:
+      - name: runner
+        image: ghcr.io/actions/actions-runner:latest
+        command: ["/home/runner/run.sh"]
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        env:
+          - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+            value: "false"
+
+# Controller service account (inherits from namespace)
+controllerServiceAccount:
+  namespace: arc-system
+  name: arc-gha-runner-scale-set-controller
