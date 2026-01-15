@@ -92,6 +92,18 @@ resource "kubernetes_role" "arc_controller_secrets" {
     resources  = ["pods/exec"]
     verbs      = ["create"]
   }
+
+  rule {
+    api_groups = ["rbac.authorization.k8s.io"]
+    resources  = ["roles", "rolebindings"]
+    verbs      = ["get", "list", "watch", "create", "update", "patch", "delete"]
+  }
+
+  rule {
+    api_groups = ["actions.github.com"]
+    resources  = ["ephemeralrunnersets", "ephemeralrunners", "ephemeralrunners/status"]
+    verbs      = ["get", "list", "watch", "create", "update", "patch", "delete"]
+  }
 }
 
 resource "kubernetes_role_binding" "arc_controller_secrets" {
