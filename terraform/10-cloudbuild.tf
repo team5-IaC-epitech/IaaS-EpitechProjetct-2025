@@ -8,8 +8,12 @@ resource "null_resource" "build_and_push_image" {
   # Build and push image using Cloud Build
   provisioner "local-exec" {
     working_dir = "${path.module}/.."
-    interpreter = ["PowerShell", "-Command"]
-    command     = "gcloud builds submit --config=cloudbuild.yaml --substitutions=\"_ARTIFACT_REGISTRY_URL=${google_artifact_registry_repository.docker_repo.location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo.repository_id},SHORT_SHA=terraform\" --project=${var.project_id} ."
+    command     = <<EOT
+gcloud builds submit \
+  --config=cloudbuild.yaml \
+  --substitutions=_ARTIFACT_REGISTRY_URL=${google_artifact_registry_repository.docker_repo.location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo.repository_id},SHORT_SHA=terraform \
+  --project=${var.project_id} .
+EOT
   }
 
   depends_on = [
