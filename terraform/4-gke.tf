@@ -26,6 +26,14 @@ resource "google_container_cluster" "primary" {
     enabled = true
   }
 
+  # Enable GCP Managed Prometheus for monitoring
+  monitoring_config {
+    enable_components = ["SYSTEM_COMPONENTS"]
+    managed_prometheus {
+      enabled = true
+    }
+  }
+
   deletion_protection = false
 }
 

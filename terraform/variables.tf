@@ -49,7 +49,7 @@ variable "cidr_block" {
 variable "cluster_name" {
   description = "Name of the GKE cluster"
   type        = string
-  default     = "team5-gke-cluster-dev"
+  default     = "team5-gke-cluster"
 }
 
 variable "environment" {
@@ -184,4 +184,12 @@ variable "app_name" {
   description = "Application name"
   type        = string
   default     = "task-manager"
+}
+
+# Monitoring variables
+variable "grafana_admin_password" {
+  description = "Grafana admin password"
+  type        = string
+  default     = "changeme123"
+  sensitive   = true
 }
