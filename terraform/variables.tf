@@ -185,3 +185,42 @@ variable "app_name" {
   type        = string
   default     = "task-manager"
 }
+
+# GitHub Actions Runner Controller (ARC) variables
+variable "github_app_id" {
+  description = "GitHub App ID for runner authentication"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "github_app_installation_id" {
+  description = "GitHub App Installation ID"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "github_app_private_key" {
+  description = "GitHub App private key (PEM format)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "github_config_url" {
+  description = "GitHub repository or organization URL for runners (e.g., https://github.com/org/repo)"
+  type        = string
+}
+
+variable "arc_min_runners" {
+  description = "Minimum number of runners to keep idle"
+  type        = number
+  default     = 0
+}
+
+variable "arc_max_runners" {
+  description = "Maximum number of runners to scale up to"
+  type        = number
+  default     = 5
+}
