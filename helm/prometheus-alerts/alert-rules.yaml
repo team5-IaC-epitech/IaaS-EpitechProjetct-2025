@@ -75,9 +75,9 @@ groups:
       - alert: HighClientErrorRate
         expr: |
           (
-            sum(rate(http_requests_total{job="task-manager",status=~"4.."}[5m]))
+            sum(rate(http_requests_total{job="task-manager",status=~"4.."}[1m]))
             /
-            sum(rate(http_requests_total{job="task-manager"}[5m]))
+            sum(rate(http_requests_total{job="task-manager"}[1m]))
           ) > 0.20
         for: 5m
         labels:
