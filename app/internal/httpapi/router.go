@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 
 	"team5/task-manager/internal/config"
 	"team5/task-manager/internal/httpapi/handlers"
@@ -19,7 +18,6 @@ func NewRouter(cfg *config.Config, pool *pgxpool.Pool) http.Handler {
 	r := gin.New()
 
 	r.Use(gin.Recovery())
-	r.Use(otelgin.Middleware(cfg.ServiceName))
 	r.Use(middleware.CorrelationID())
 	r.Use(middleware.PrometheusMetrics())
 
