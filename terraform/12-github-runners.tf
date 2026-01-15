@@ -12,6 +12,21 @@ locals {
   )
 }
 
+# Debug output - remove after troubleshooting
+output "debug_deploy_runners" {
+  value = local.deploy_runners
+  description = "Whether runner deployment is enabled (all credentials provided)"
+}
+
+output "debug_credentials_status" {
+  value = {
+    app_id_set           = var.github_app_id != ""
+    installation_id_set  = var.github_app_installation_id != ""
+    private_key_set      = var.github_app_private_key != ""
+  }
+  description = "Status of each credential"
+}
+
 # Namespace for ARC controller
 resource "kubernetes_namespace" "arc_system" {
   count = local.deploy_runners ? 1 : 0
