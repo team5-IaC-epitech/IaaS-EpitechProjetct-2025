@@ -219,37 +219,7 @@ resource "kubernetes_config_map" "grafana_dashboards" {
   depends_on = [kubernetes_namespace.monitoring]
 }
 
-# PodMonitoring resource for task-manager
-resource "kubernetes_manifest" "task_manager_pod_monitoring" {
-  manifest = {
-    apiVersion = "monitoring.googleapis.com/v1"
-    kind       = "PodMonitoring"
-    metadata = {
-      name      = "task-manager"
-      namespace = "default"
-    }
-    spec = {
-      selector = {
-        matchLabels = {
-          "app.kubernetes.io/name"     = "task-manager"
-          "app.kubernetes.io/instance" = var.app_name
-        }
-      }
-      endpoints = [
-        {
-          port     = "http"
-          path     = "/metrics"
-          interval = "30s"
-        }
-      ]
-    }
-  }
-
-  depends_on = [
-    google_container_cluster.primary,
-    helm_release.task_manager
-  ]
-}
+# Note: PodMonitoring resource is managed by the Helm chart at helm/task-manager/templates/podmonitoring.yaml
 
 # Prometheus ConfigMap
 resource "kubernetes_config_map" "prometheus_config" {
@@ -263,6 +233,15 @@ resource "kubernetes_config_map" "prometheus_config" {
       global:
         scrape_interval: 30s
         evaluation_interval: 30s
+
+      alerting:
+        alertmanagers:
+          - static_configs:
+              - targets:
+                  - alertmanager:9093
+
+      rule_files:
+        - /etc/prometheus/alert-rules.yaml
 
       scrape_configs:
         - job_name: 'task-manager'
@@ -296,6 +275,8 @@ resource "kubernetes_config_map" "prometheus_config" {
               action: replace
               target_label: kubernetes_pod_name
     EOT
+
+    "alert-rules.yaml" = file("${path.module}/../helm/prometheus-alerts/alert-rules.yaml")
   }
 
   depends_on = [kubernetes_namespace.monitoring]
@@ -354,6 +335,13 @@ resource "kubernetes_service" "prometheus" {
   metadata {
     name      = "prometheus"
     namespace = kubernetes_namespace.monitoring.metadata[0].name
+    annotations = {
+      "cloud.google.com/backend-config" = jsonencode({
+        ports = {
+          "web" = "prometheus-backend-config"
+        }
+      })
+    }
   }
 
   spec {
@@ -362,11 +350,13 @@ resource "kubernetes_service" "prometheus" {
     }
 
     port {
+      name        = "web"
       port        = 9090
       target_port = 9090
+      node_port   = 30090
     }
 
-    type = "ClusterIP"
+    type = "NodePort"
   }
 
   depends_on = [kubernetes_namespace.monitoring]
@@ -415,6 +405,7 @@ resource "kubernetes_deployment" "prometheus" {
           volume_mount {
             name       = "config"
             mount_path = "/etc/prometheus"
+            read_only  = true
           }
 
           volume_mount {
@@ -465,4 +456,236 @@ resource "kubernetes_deployment" "prometheus" {
       spec[0].template[0].spec[0].toleration
     ]
   }
+}
+
+# AlertManager ConfigMap
+resource "kubernetes_config_map" "alertmanager_config" {
+  metadata {
+    name      = "alertmanager-config"
+    namespace = kubernetes_namespace.monitoring.metadata[0].name
+  }
+
+  data = {
+    "alertmanager.yml" = <<-EOT
+      global:
+        resolve_timeout: 5m
+
+      route:
+        group_by: ['alertname', 'severity']
+        group_wait: 10s
+        group_interval: 10s
+        repeat_interval: 12h
+        receiver: 'default'
+
+      receivers:
+        - name: 'default'
+          # Configure your notification channel here (Slack, Email, PagerDuty, etc.)
+          # For now, alerts will be visible in AlertManager UI
+    EOT
+  }
+
+  depends_on = [kubernetes_namespace.monitoring]
+}
+
+# AlertManager Service
+resource "kubernetes_service" "alertmanager" {
+  metadata {
+    name      = "alertmanager"
+    namespace = kubernetes_namespace.monitoring.metadata[0].name
+  }
+
+  spec {
+    selector = {
+      app = "alertmanager"
+    }
+
+    port {
+      name        = "web"
+      port        = 9093
+      target_port = 9093
+      node_port   = 30093
+    }
+
+    type = "NodePort"
+  }
+
+  depends_on = [kubernetes_namespace.monitoring]
+}
+
+# AlertManager Deployment
+resource "kubernetes_deployment" "alertmanager" {
+  metadata {
+    name      = "alertmanager"
+    namespace = kubernetes_namespace.monitoring.metadata[0].name
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        app = "alertmanager"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "alertmanager"
+        }
+      }
+
+      spec {
+        container {
+          name  = "alertmanager"
+          image = "prom/alertmanager:latest"
+
+          args = [
+            "--config.file=/etc/alertmanager/alertmanager.yml",
+            "--storage.path=/alertmanager"
+          ]
+
+          port {
+            container_port = 9093
+          }
+
+          volume_mount {
+            name       = "config"
+            mount_path = "/etc/alertmanager"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "storage"
+            mount_path = "/alertmanager"
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "128Mi"
+            }
+            limits = {
+              cpu    = "200m"
+              memory = "256Mi"
+            }
+          }
+        }
+
+        volume {
+          name = "config"
+          config_map {
+            name = kubernetes_config_map.alertmanager_config.metadata[0].name
+          }
+        }
+
+        volume {
+          name = "storage"
+          empty_dir {}
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    kubernetes_namespace.monitoring,
+    kubernetes_config_map.alertmanager_config
+  ]
+}
+
+# Prometheus BackendConfig for health check
+resource "kubernetes_manifest" "prometheus_backend_config" {
+  manifest = {
+    apiVersion = "cloud.google.com/v1"
+    kind       = "BackendConfig"
+    metadata = {
+      name      = "prometheus-backend-config"
+      namespace = kubernetes_namespace.monitoring.metadata[0].name
+    }
+    spec = {
+      healthCheck = {
+        requestPath = "/-/healthy"
+        port        = 9090
+        type        = "HTTP"
+      }
+    }
+  }
+
+  depends_on = [kubernetes_namespace.monitoring]
+}
+
+# Prometheus Ingress
+resource "kubernetes_ingress_v1" "prometheus" {
+  metadata {
+    name      = "prometheus"
+    namespace = kubernetes_namespace.monitoring.metadata[0].name
+    annotations = {
+      "kubernetes.io/ingress.class" = "gce"
+    }
+  }
+
+  spec {
+    ingress_class_name = "gce"
+
+    rule {
+      http {
+        path {
+          path      = "/*"
+          path_type = "ImplementationSpecific"
+
+          backend {
+            service {
+              name = kubernetes_service.prometheus.metadata[0].name
+              port {
+                number = 9090
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    kubernetes_namespace.monitoring,
+    kubernetes_service.prometheus
+  ]
+}
+
+# AlertManager Ingress
+resource "kubernetes_ingress_v1" "alertmanager" {
+  metadata {
+    name      = "alertmanager"
+    namespace = kubernetes_namespace.monitoring.metadata[0].name
+    annotations = {
+      "kubernetes.io/ingress.class" = "gce"
+    }
+  }
+
+  spec {
+    ingress_class_name = "gce"
+
+    rule {
+      http {
+        path {
+          path      = "/*"
+          path_type = "ImplementationSpecific"
+
+          backend {
+            service {
+              name = kubernetes_service.alertmanager.metadata[0].name
+              port {
+                number = 9093
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    kubernetes_namespace.monitoring,
+    kubernetes_service.alertmanager
+  ]
 }
