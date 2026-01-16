@@ -22,8 +22,8 @@ resource "google_container_cluster" "primary" {
 
   # Private cluster: nodes have internal IPs only, master is accessible publicly
   private_cluster_config {
-    enable_private_nodes    = true  # Nodes use internal IPs (more secure)
-    enable_private_endpoint = false # Master accessible from internet (for CI/CD)
+    enable_private_nodes    = true            # Nodes use internal IPs (more secure)
+    enable_private_endpoint = false           # Master accessible from internet (for CI/CD)
     master_ipv4_cidr_block  = "172.16.0.0/28" # /28 = 16 IPs for master
   }
 
@@ -76,7 +76,7 @@ resource "google_container_node_pool" "apps" {
     # Provides ~1200m available CPU for apps (vs ~240m on e2-medium)
     machine_type = "e2-standard-2"
 
-    disk_size_gb = 50         # 50GB boot disk (sufficient for app containers)
+    disk_size_gb = 50            # 50GB boot disk (sufficient for app containers)
     disk_type    = "pd-standard" # Standard HDD (cheaper, adequate for apps)
 
     # Service account for node operations (pull images, write logs)

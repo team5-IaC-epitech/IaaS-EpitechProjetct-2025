@@ -1,0 +1,192 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      type:
+        description: 'What to deploy'
+        required: true
+        type: choice
+        options:
+          - infra
+          - app
+      version:
+        description: 'Version to deploy (e.g., 1.2.3). Leave empty to auto-detect from latest dev tag.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  # Determine version
+  prepare:
+    name: Prepare Deployment
+    runs-on: arc-runner-set
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          TYPE="${{ inputs.type }}"
+
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            echo "Using provided version: $VERSION"
+          else
+            # Get latest dev tag for this type
+            LATEST_DEV_TAG=$(git tag -l "${TYPE}/v*-dev" --sort=-v:refname | head -n 1)
+            if [ -z "$LATEST_DEV_TAG" ]; then
+              echo "Error: No dev tag found for type '${TYPE}'"
+              exit 1
+            fi
+            # Extract version (e.g., infra/v1.2.3-dev -> 1.2.3)
+            VERSION=$(echo "$LATEST_DEV_TAG" | sed "s|${TYPE}/v||" | sed 's|-dev||')
+            echo "Auto-detected version from dev: $VERSION (tag: $LATEST_DEV_TAG)"
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Validate version exists in dev
+        run: |
+          TYPE="${{ inputs.type }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          DEV_TAG="${TYPE}/v${VERSION}-dev"
+
+          if ! git tag -l | grep -q "^${DEV_TAG}$"; then
+            echo "Error: Tag '${DEV_TAG}' not found!"
+            echo "Please deploy to dev first before deploying to prod."
+            exit 1
+          fi
+
+          echo "Validated: $DEV_TAG exists"
+
+  # Deploy infrastructure to PROD
+  deploy-infra:
+    name: Deploy Infra to Prod
+    needs: prepare
+    if: inputs.type == 'infra'
+    runs-on: arc-runner-set
+    environment: prd
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/983571400636/locations/global/workloadIdentityPools/team5-wif-prd/providers/github'
+          service_account: 'team5-sa-prd@epitech-iaas-prod.iam.gserviceaccount.com'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend-config=../backends/prd.config
+
+      - name: Terraform Plan
+        working-directory: terraform
+        env:
+          TF_VAR_github_app_id: ${{ secrets.GH_APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.GH_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        run: terraform plan -var-file=env/prd.tfvars -out=tfplan-prd
+
+      - name: Terraform Apply
+        working-directory: terraform
+        env:
+          TF_VAR_github_app_id: ${{ secrets.GH_APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.GH_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        run: terraform apply -auto-approve tfplan-prd
+
+  # Deploy app to PROD
+  deploy-app:
+    name: Deploy App to Prod
+    needs: prepare
+    if: inputs.type == 'app'
+    runs-on: arc-runner-set
+    environment: prd
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/983571400636/locations/global/workloadIdentityPools/team5-wif-prd/providers/github'
+          service_account: 'team5-sa-prd@epitech-iaas-prod.iam.gserviceaccount.com'
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker europe-west9-docker.pkg.dev --quiet
+
+      - name: Pull dev image and push to prod
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          DEV_IMAGE="europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager:${VERSION}"
+          PROD_IMAGE="europe-west9-docker.pkg.dev/epitech-iaas-prod/task-manager-prd/task-manager"
+
+          # Pull from dev registry
+          docker pull ${DEV_IMAGE}
+
+          # Tag for prod
+          docker tag ${DEV_IMAGE} ${PROD_IMAGE}:${VERSION}
+          docker tag ${DEV_IMAGE} ${PROD_IMAGE}:latest
+
+          # Push to prod registry
+          docker push ${PROD_IMAGE}:${VERSION}
+          docker push ${PROD_IMAGE}:latest
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: team5-gke-cluster
+          location: europe-west9
+          project_id: epitech-iaas-prod
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install task-manager helm/task-manager \
+            --namespace default \
+            --set image.repository=europe-west9-docker.pkg.dev/epitech-iaas-prod/task-manager-prd/task-manager \
+            --set image.tag="${{ needs.prepare.outputs.version }}" \
+            --set env.envName=prd \
+            --set gcp.projectId=epitech-iaas-prod \
+            --set gcp.workloadIdentityServiceAccount=team5-gke-cluster-app-prd@epitech-iaas-prod.iam.gserviceaccount.com \
+            --set secrets.databaseUrlSecretName=task-manager-database-url-prd \
+            --set secrets.jwtSecretSecretName=task-manager-jwt-secret-prd \
+            --wait --timeout 5m
+
+  # Create prod tag after successful deployment
+  create-tag:
+    name: Create Production Tag
+    needs: [prepare, deploy-infra, deploy-app]
+    if: always() && (needs.deploy-infra.result == 'success' || needs.deploy-app.result == 'success')
+    runs-on: arc-runner-set
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create and push tag
+        run: |
+          TYPE="${{ inputs.type }}"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          TAG="${TYPE}/v${VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$TAG" -m "Deploy ${TYPE} v${VERSION} to production"
+          git push origin "$TAG"
+
+          echo "Created production tag: $TAG"

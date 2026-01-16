@@ -1,0 +1,204 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  # Detect what changed
+  changes:
+    name: Detect Changes
+    runs-on: arc-runner-set
+    outputs:
+      infra: ${{ steps.filter.outputs.infra }}
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'terraform/**'
+              - 'backends/**'
+            app:
+              - 'app/**'
+              - 'helm/**'
+
+  # Calculate version from conventional commits
+  version:
+    name: Calculate Version
+    needs: changes
+    if: needs.changes.outputs.infra == 'true' || needs.changes.outputs.app == 'true'
+    runs-on: arc-runner-set
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      type: ${{ steps.type.outputs.type }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine change type
+        id: type
+        run: |
+          if [[ "${{ needs.changes.outputs.infra }}" == "true" ]]; then
+            echo "type=infra" >> $GITHUB_OUTPUT
+          else
+            echo "type=app" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get latest tag
+        id: latest_tag
+        run: |
+          TYPE="${{ steps.type.outputs.type }}"
+          # Get latest tag for this type
+          LATEST_TAG=$(git tag -l "${TYPE}/v*" --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "version=0.0.0" >> $GITHUB_OUTPUT
+          else
+            # Extract version number
+            VERSION=$(echo "$LATEST_TAG" | sed "s|${TYPE}/v||")
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+          echo "Latest tag: $LATEST_TAG"
+
+      - name: Calculate next version
+        id: version
+        run: |
+          CURRENT="${{ steps.latest_tag.outputs.version }}"
+          MAJOR=$(echo $CURRENT | cut -d. -f1)
+          MINOR=$(echo $CURRENT | cut -d. -f2)
+          PATCH=$(echo $CURRENT | cut -d. -f3)
+
+          # Get commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MSG"
+
+          # Determine bump type from conventional commit
+          if [[ "$COMMIT_MSG" =~ ^feat!:|^BREAKING\ CHANGE: ]]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [[ "$COMMIT_MSG" =~ ^feat: ]]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            # fix:, chore:, docs:, etc. = patch
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+  # Deploy infrastructure to DEV
+  deploy-infra:
+    name: Deploy Infra to Dev
+    needs: [changes, version]
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: arc-runner-set
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github'
+          service_account: 'team5-sa-dev@iaasepitech.iam.gserviceaccount.com'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend-config=../backends/dev.config
+
+      - name: Terraform Apply
+        working-directory: terraform
+        env:
+          TF_VAR_github_app_id: ${{ secrets.GH_APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.GH_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        run: terraform apply -auto-approve -var-file=env/dev.tfvars
+
+  # Deploy app to DEV
+  deploy-app:
+    name: Deploy App to Dev
+    needs: [changes, version]
+    if: needs.changes.outputs.app == 'true'
+    runs-on: arc-runner-set
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github'
+          service_account: 'team5-sa-dev@iaasepitech.iam.gserviceaccount.com'
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker europe-west9-docker.pkg.dev --quiet
+
+      - name: Build and Push Image
+        working-directory: app
+        run: |
+          IMAGE="europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager"
+          VERSION="${{ needs.version.outputs.version }}"
+
+          docker build -t ${IMAGE}:${VERSION} -t ${IMAGE}:latest .
+          docker push ${IMAGE}:${VERSION}
+          docker push ${IMAGE}:latest
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: team5-gke-cluster
+          location: europe-west9
+          project_id: iaasepitech
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install task-manager helm/task-manager \
+            --namespace default \
+            --set image.tag="${{ needs.version.outputs.version }}" \
+            --wait --timeout 5m
+
+  # Create tag after successful deployment
+  create-tag:
+    name: Create Version Tag
+    needs: [version, deploy-infra, deploy-app]
+    if: always() && (needs.deploy-infra.result == 'success' || needs.deploy-app.result == 'success')
+    runs-on: arc-runner-set
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create and push tag
+        run: |
+          TYPE="${{ needs.version.outputs.type }}"
+          VERSION="${{ needs.version.outputs.version }}"
+          TAG="${TYPE}/v${VERSION}-dev"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$TAG" -m "Deploy ${TYPE} v${VERSION} to dev"
+          git push origin "$TAG"
+
+          echo "Created tag: $TAG"

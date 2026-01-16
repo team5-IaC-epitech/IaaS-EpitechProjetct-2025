@@ -5,8 +5,7 @@ resource "google_sql_database_instance" "postgres" {
   region           = var.region
   project          = var.project_id
 
-  # Production: true, Dev: false
-  deletion_protection = var.environment == "prd" ? true : false
+  deletion_protection = false
 
   settings {
     tier = var.cloudsql_tier
@@ -55,7 +54,7 @@ resource "google_sql_database_instance" "postgres" {
 
     database_flags {
       name  = "shared_buffers"
-      value = var.environment == "prd" ? "262144" : "32768" # 1GB for prod, 128MB for dev (in 8KB pages)
+      value = "32768"
     }
 
     database_flags {

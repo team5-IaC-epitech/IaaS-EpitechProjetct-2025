@@ -21,7 +21,7 @@ provider "github" {
   token = var.github_token
 }
 
-resource github_repository_collaborator "teacher" {
+resource "github_repository_collaborator" "teacher" {
   repository = "Iaas-EpitechProjetct-2025"
   username   = "Kloox"
   permission = "pull"
