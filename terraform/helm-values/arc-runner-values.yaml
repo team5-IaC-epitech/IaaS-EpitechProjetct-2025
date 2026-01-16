@@ -1,45 +1,53 @@
 # Actions Runner Controller - Runner Scale Set Values
 # https://github.com/actions/actions-runner-controller
+#
+# Configuration for GKE Standard - default mode (no containerMode)
+# Default mode uses the full runner image with Node.js and tools included
 
-# GitHub repository/organization URL
+# GitHub repository/organization URL (configured at deploy time)
 githubConfigUrl: "${github_config_url}"
 
-# GitHub App authentication
+# GitHub App authentication (more secure than PAT)
 githubConfigSecret:
   github_app_id: "${github_app_id}"
   github_app_installation_id: "${github_app_installation_id}"
-  # github_app_private_key is set via set_sensitive in Terraform
 
 # Runner scaling configuration
 minRunners: ${min_runners}
 maxRunners: ${max_runners}
 
-# Runner labels - use these in your workflows with runs-on
 runnerGroup: "default"
 
-# Container mode - recommended for GKE Autopilot
-containerMode:
-  type: "dind"  # Docker-in-Docker mode
+# No containerMode = default runner mode
+# Runner uses ghcr.io/actions/actions-runner:latest with full toolset
+# Includes: Node.js, Python, git, and common build tools
 
 # Runner pod template
 template:
   spec:
+    # Schedule on runner nodes
+    tolerations:
+      - key: "workload"
+        operator: "Equal"
+        value: "runners"
+        effect: "NoSchedule"
+
+    nodeSelector:
+      workload: "runners"
+
     containers:
       - name: runner
-        image: ghcr.io/actions/actions-runner:latest
-        command: ["/home/runner/run.sh"]
+        # Custom runner image with Node.js (built from docker/runner/Dockerfile)
+        # Based on official ghcr.io/actions/actions-runner with Node.js 20 added
+        image: europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/github-runner:latest
         resources:
           requests:
             cpu: "500m"
-            memory: "512Mi"
+            memory: "1Gi"
           limits:
             cpu: "2000m"
-            memory: "2Gi"
-        env:
-          - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
-            value: "false"
+            memory: "4Gi"
 
-# Controller service account (inherits from namespace)
 controllerServiceAccount:
   namespace: arc-system
   name: arc-gha-runner-scale-set-controller

@@ -56,7 +56,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-INGRESS_IP="${INGRESS_IP:-136.110.213.157}"
+INGRESS_IP="${INGRESS_IP:-34.13.122.235}"
 ENDPOINT="${ENDPOINT:-/healthz}"
 DEPLOYMENT_NAME="task-manager"
 NAMESPACE="default"
