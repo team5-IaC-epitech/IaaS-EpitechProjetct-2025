@@ -185,19 +185,7 @@ jobs:
             "europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager:latest" \
             --quiet
 
-      - name: Check if GKE cluster exists
-        id: cluster-check
-        run: |
-          if gcloud container clusters describe team5-gke-cluster --region europe-west9 --project iaasepitech &>/dev/null; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "GKE cluster exists"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "GKE cluster does not exist - skipping Helm deployment"
-          fi
-
       - name: Get GKE credentials
-        if: steps.cluster-check.outputs.exists == 'true'
         uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: team5-gke-cluster
@@ -205,22 +193,14 @@ jobs:
           project_id: iaasepitech
 
       - name: Setup Helm
-        if: steps.cluster-check.outputs.exists == 'true'
         uses: azure/setup-helm@v4
 
       - name: Deploy with Helm
-        if: steps.cluster-check.outputs.exists == 'true'
         run: |
           helm upgrade --install task-manager helm/task-manager \
             --namespace default \
             --set image.tag="${{ needs.version.outputs.version }}" \
             --wait --timeout 5m
-
-      - name: Skip deployment notice
-        if: steps.cluster-check.outputs.exists == 'false'
-        run: |
-          echo "::warning::GKE cluster not found. Image was built and pushed, but Helm deployment was skipped."
-          echo "Run 'terraform apply' to create the cluster, then re-run this workflow."
 
   # Create tag after successful deployment
   create-tag:
