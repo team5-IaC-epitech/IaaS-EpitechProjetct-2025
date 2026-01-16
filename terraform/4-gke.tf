@@ -173,3 +173,10 @@ resource "google_project_iam_member" "gke_nodes_monitoring" {
   role    = "roles/monitoring.metricWriter"
   member  = "serviceAccount:${google_service_account.gke_nodes.email}"
 }
+
+# Required for GKE node operations (HPA, logging, monitoring, image pulling)
+resource "google_project_iam_member" "gke_nodes_default" {
+  project = var.project_id
+  role    = "roles/container.defaultNodeServiceAccount"
+  member  = "serviceAccount:${google_service_account.gke_nodes.email}"
+}
