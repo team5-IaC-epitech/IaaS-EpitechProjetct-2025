@@ -53,7 +53,7 @@
       },
       "targets": [
         {
-          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\", container!=\"POD\"}[5m])) / sum(machine_cpu_cores) * 100",
           "legendFormat": "CPU Usage",
           "refId": "A"
         }
@@ -88,7 +88,7 @@
       },
       "targets": [
         {
-          "expr": "(1 - (sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes))) * 100",
+          "expr": "sum(container_memory_working_set_bytes{container!=\"\", container!=\"POD\"}) / sum(machine_memory_bytes) * 100",
           "legendFormat": "Memory Usage",
           "refId": "A"
         }
@@ -484,7 +484,7 @@
       },
       "targets": [
         {
-          "expr": "100 - (avg by (node) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "expr": "sum by (node) (rate(container_cpu_usage_seconds_total{container!=\"\", container!=\"POD\"}[5m])) / on(node) group_left() sum by (node) (machine_cpu_cores) * 100",
           "legendFormat": "{{node}}",
           "refId": "A"
         }
@@ -530,8 +530,8 @@
       },
       "targets": [
         {
-          "expr": "node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes",
-          "legendFormat": "{{instance}}",
+          "expr": "sum by (node) (container_memory_working_set_bytes{container!=\"\", container!=\"POD\"})",
+          "legendFormat": "{{node}}",
           "refId": "A"
         }
       ],
