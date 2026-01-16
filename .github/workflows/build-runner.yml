@@ -1,0 +1,44 @@
+name: Build Runner Image
+
+on:
+  push:
+    branches: [master]
+    paths: ['docker/runner/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGISTRY: europe-west9-docker.pkg.dev
+  PROJECT_ID: iaasepitech
+  REPOSITORY: task-manager-dev
+  IMAGE_NAME: github-runner
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: google-github-actions/auth@v2.0.0
+        with:
+          workload_identity_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github'
+          service_account: 'team5-sa-dev@iaasepitech.iam.gserviceaccount.com'
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: docker/runner
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

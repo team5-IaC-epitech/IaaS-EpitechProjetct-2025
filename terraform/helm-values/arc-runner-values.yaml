@@ -37,11 +37,9 @@ template:
 
     containers:
       - name: runner
-        # Community runner image with full toolset (Node.js, Python, git, Docker CLI)
-        # From original ARC author - widely used, includes tools GitHub Actions need
-        # Source: https://hub.docker.com/r/summerwind/actions-runner
-        image: summerwind/actions-runner:v2.321.0-ubuntu-22.04
-        # Use default entrypoint from image (no command override)
+        # Custom runner image with Node.js (built from docker/runner/Dockerfile)
+        # Based on official ghcr.io/actions/actions-runner with Node.js 20 added
+        image: europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/github-runner:latest
         resources:
           requests:
             cpu: "500m"
