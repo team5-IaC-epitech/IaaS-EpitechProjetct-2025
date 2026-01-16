@@ -80,8 +80,8 @@ resource "helm_release" "grafana" {
           "kubernetes.io/ingress.class"      = "gce"
           "kubernetes.io/ingress.allow-http" = "true"
         }
-        hosts = []
-        path  = "/*"
+        hosts    = []
+        path     = "/*"
         pathType = "ImplementationSpecific"
       }
 
@@ -168,9 +168,9 @@ resource "helm_release" "grafana" {
       }
 
       env = {
-        GF_SERVER_ROOT_URL            = "http://grafana.local"
-        GF_USERS_ALLOW_SIGN_UP        = "false"
-        GF_AUTH_ANONYMOUS_ENABLED     = "false"
+        GF_SERVER_ROOT_URL        = "http://grafana.local"
+        GF_USERS_ALLOW_SIGN_UP    = "false"
+        GF_AUTH_ANONYMOUS_ENABLED = "false"
       }
 
       readinessProbe = {
