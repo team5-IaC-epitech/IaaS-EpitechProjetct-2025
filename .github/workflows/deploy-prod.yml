@@ -125,25 +125,25 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker europe-west9-docker.pkg.dev --quiet
+      - name: Install crane
+        run: |
+          VERSION="v0.19.1"
+          curl -sL "https://github.com/google/go-containerregistry/releases/download/${VERSION}/go-containerregistry_Linux_x86_64.tar.gz" | tar -xzf - crane
+          chmod +x crane
+          sudo mv crane /usr/local/bin/
 
-      - name: Pull dev image and push to prod
+      - name: Copy image from dev to prod
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
           DEV_IMAGE="europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager:${VERSION}"
           PROD_IMAGE="europe-west9-docker.pkg.dev/epitech-iaas-prod/task-manager-prd/task-manager"
 
-          # Pull from dev registry
-          docker pull ${DEV_IMAGE}
+          # Authenticate crane with gcloud
+          gcloud auth print-access-token | crane auth login -u oauth2accesstoken --password-stdin europe-west9-docker.pkg.dev
 
-          # Tag for prod
-          docker tag ${DEV_IMAGE} ${PROD_IMAGE}:${VERSION}
-          docker tag ${DEV_IMAGE} ${PROD_IMAGE}:latest
-
-          # Push to prod registry
-          docker push ${PROD_IMAGE}:${VERSION}
-          docker push ${PROD_IMAGE}:latest
+          # Copy image from dev to prod
+          crane copy ${DEV_IMAGE} ${PROD_IMAGE}:${VERSION}
+          crane copy ${DEV_IMAGE} ${PROD_IMAGE}:latest
 
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v2
