@@ -213,7 +213,8 @@ resource "kubernetes_config_map" "grafana_dashboards" {
   }
 
   data = {
-    "task-manager-overview.json" = file("${path.module}/../helm/grafana/dashboards/task-manager-overview.json")
+    "task-manager-overview.json"    = file("${path.module}/../helm/grafana/dashboards/task-manager-overview.json")
+    "cluster-runners-overview.json" = file("${path.module}/../helm/grafana/dashboards/cluster-runners-overview.json")
   }
 
   depends_on = [kubernetes_namespace.monitoring]
@@ -244,6 +245,7 @@ resource "kubernetes_config_map" "prometheus_config" {
         - /etc/prometheus/alert-rules.yaml
 
       scrape_configs:
+        # Task Manager application metrics
         - job_name: 'task-manager'
           kubernetes_sd_configs:
             - role: pod
@@ -274,6 +276,89 @@ resource "kubernetes_config_map" "prometheus_config" {
             - source_labels: [__meta_kubernetes_pod_name]
               action: replace
               target_label: kubernetes_pod_name
+
+        # Kubernetes API server metrics for cluster health
+        - job_name: 'kubernetes-apiservers'
+          kubernetes_sd_configs:
+            - role: endpoints
+          scheme: https
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+              action: keep
+              regex: default;kubernetes;https
+
+        # Kubernetes nodes metrics (kubelet/cadvisor)
+        - job_name: 'kubernetes-nodes'
+          kubernetes_sd_configs:
+            - role: node
+          scheme: https
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          relabel_configs:
+            - action: labelmap
+              regex: __meta_kubernetes_node_label_(.+)
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/$1/proxy/metrics
+
+        # Container metrics from cAdvisor
+        - job_name: 'kubernetes-cadvisor'
+          kubernetes_sd_configs:
+            - role: node
+          scheme: https
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          relabel_configs:
+            - action: labelmap
+              regex: __meta_kubernetes_node_label_(.+)
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+
+        # Kubernetes pods metrics (for runners and all pods)
+        - job_name: 'kubernetes-pods'
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: true
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+              target_label: __address__
+            - action: labelmap
+              regex: __meta_kubernetes_pod_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              action: replace
+              target_label: pod
+
+        # Kube-state-metrics for Kubernetes object metrics
+        - job_name: 'kube-state-metrics'
+          static_configs:
+            - targets: ['kube-state-metrics.kube-system.svc:8080']
     EOT
 
     "alert-rules.yaml" = file("${path.module}/../helm/prometheus-alerts/alert-rules.yaml")
@@ -688,4 +773,80 @@ resource "kubernetes_ingress_v1" "alertmanager" {
     kubernetes_namespace.monitoring,
     kubernetes_service.alertmanager
   ]
+}
+
+# =============================================================================
+# KUBE-STATE-METRICS
+# =============================================================================
+# Deploys kube-state-metrics to expose Kubernetes object metrics
+# Required for cluster health monitoring, pod status, node conditions, etc.
+
+resource "helm_release" "kube_state_metrics" {
+  name       = "kube-state-metrics"
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "kube-state-metrics"
+  version    = "5.15.2"
+  namespace  = "kube-system"
+
+  wait          = true
+  wait_for_jobs = true
+  timeout       = 300
+
+  values = [
+    yamlencode({
+      replicas = 1
+
+      resources = {
+        requests = {
+          cpu    = "10m"
+          memory = "32Mi"
+        }
+        limits = {
+          cpu    = "100m"
+          memory = "128Mi"
+        }
+      }
+
+      # Collect metrics for these resources
+      collectors = [
+        "certificatesigningrequests"
+        , "configmaps"
+        , "cronjobs"
+        , "daemonsets"
+        , "deployments"
+        , "endpoints"
+        , "horizontalpodautoscalers"
+        , "ingresses"
+        , "jobs"
+        , "leases"
+        , "limitranges"
+        , "namespaces"
+        , "networkpolicies"
+        , "nodes"
+        , "persistentvolumeclaims"
+        , "persistentvolumes"
+        , "poddisruptionbudgets"
+        , "pods"
+        , "replicasets"
+        , "replicationcontrollers"
+        , "resourcequotas"
+        , "secrets"
+        , "services"
+        , "statefulsets"
+        , "storageclasses"
+        , "validatingwebhookconfigurations"
+        , "volumeattachments"
+      ]
+
+      # Prometheus scrape annotations
+      prometheusScrape = true
+
+      service = {
+        port     = 8080
+        type     = "ClusterIP"
+      }
+    })
+  ]
+
+  depends_on = [google_container_cluster.primary]
 }
