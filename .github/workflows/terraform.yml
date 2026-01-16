@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - master
+    tags:
+      - "v*"
   pull_request:
     branches:
       - master
@@ -23,28 +25,60 @@ permissions:
   id-token: write
 
 jobs:
-  terraform:
+  # VALIDATION JOB - Runs on all triggers
+  validate:
+    name: Validate Terraform
     runs-on: ${{ inputs.runner_type == 'github-hosted' && 'ubuntu-latest' || 'arc-runner-set' }}
-
-    strategy:
-      matrix:
-        env: [dev]
-
     steps:
-      - uses: actions/checkout@v3
-
-      - id: auth
-        uses: google-github-actions/auth@v2.0.0
-        with:
-          workload_identity_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github'
-          service_account: 'team5-sa-dev@iaasepitech.iam.gserviceaccount.com'
+      - uses: actions/checkout@v4
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
 
-      - name: Init Terraform
+      - name: Terraform Format Check
         working-directory: terraform
-        run: terraform init -backend-config=../backends/${{ matrix.env }}.config
+        run: terraform fmt -check -recursive -diff
+
+      - name: Terraform Init (for validation)
+        working-directory: terraform
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: terraform
+        run: terraform validate
+
+  # PLAN JOB - Runs for both dev and prd
+  plan:
+    name: Plan (${{ matrix.environment }})
+    needs: validate
+    runs-on: ${{ inputs.runner_type == 'github-hosted' && 'ubuntu-latest' || 'arc-runner-set' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, prd]
+        include:
+          - environment: dev
+            wif_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github'
+            service_account: 'team5-sa-dev@iaasepitech.iam.gserviceaccount.com'
+          - environment: prd
+            wif_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-prd/providers/github'
+            service_account: 'team5-sa-prd@epitech-iaas-prod.iam.gserviceaccount.com'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ matrix.wif_provider }}
+          service_account: ${{ matrix.service_account }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend-config=../backends/${{ matrix.environment }}.config
 
       - name: Terraform Plan
         working-directory: terraform
@@ -52,14 +86,86 @@ jobs:
           TF_VAR_github_app_id: ${{ secrets.GH_APP_ID }}
           TF_VAR_github_app_installation_id: ${{ secrets.GH_INSTALLATION_ID }}
           TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-        run: terraform plan -var-file=env/${{ matrix.env }}.tfvars
+        run: terraform plan -var-file=env/${{ matrix.environment }}.tfvars -out=tfplan-${{ matrix.environment }}
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: terraform/tfplan-${{ matrix.environment }}
+          retention-days: 5
+
+  # DEPLOY DEV - On version tag push
+  deploy-dev:
+    name: Deploy to Dev
+    needs: plan
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ inputs.runner_type == 'github-hosted' && 'ubuntu-latest' || 'arc-runner-set' }}
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github'
+          service_account: 'team5-sa-dev@iaasepitech.iam.gserviceaccount.com'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend-config=../backends/dev.config
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-dev
+          path: terraform
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
         working-directory: terraform
         env:
           TF_VAR_github_app_id: ${{ secrets.GH_APP_ID }}
           TF_VAR_github_app_installation_id: ${{ secrets.GH_INSTALLATION_ID }}
           TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-        run: terraform apply -auto-approve -var-file=env/${{ matrix.env }}.tfvars
+        run: terraform apply -auto-approve tfplan-dev
+
+  # DEPLOY PRD
+  deploy-prd:
+    name: Deploy to Prd
+    needs: deploy-dev
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ${{ inputs.runner_type == 'github-hosted' && 'ubuntu-latest' || 'arc-runner-set' }}
+    environment: prd
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-prd/providers/github'
+          service_account: 'team5-sa-prd@epitech-iaas-prod.iam.gserviceaccount.com'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend-config=../backends/prd.config
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-prd
+          path: terraform
+
+      - name: Terraform Apply
+        working-directory: terraform
+        env:
+          TF_VAR_github_app_id: ${{ secrets.GH_APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.GH_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        run: terraform apply -auto-approve tfplan-prd
 
