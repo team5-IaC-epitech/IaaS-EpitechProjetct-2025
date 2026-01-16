@@ -22,3 +22,6 @@ RUN apt-get update && apt-get install -y curl gnupg \
 RUN node --version && npm --version
 
 USER runner
+
+# Set entrypoint to the runner startup script
+ENTRYPOINT ["/home/runner/run.sh"]
