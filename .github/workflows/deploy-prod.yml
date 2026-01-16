@@ -125,25 +125,40 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Install crane
-        run: |
-          VERSION="v0.19.1"
-          curl -sL "https://github.com/google/go-containerregistry/releases/download/${VERSION}/go-containerregistry_Linux_x86_64.tar.gz" | tar -xzf - crane
-          chmod +x crane
-          sudo mv crane /usr/local/bin/
-
-      - name: Copy image from dev to prod
+      - name: Build and Push Image with Cloud Build
         run: |
           VERSION="${{ needs.prepare.outputs.version }}"
-          DEV_IMAGE="europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager:${VERSION}"
-          PROD_IMAGE="europe-west9-docker.pkg.dev/epitech-iaas-prod/task-manager-prd/task-manager"
 
-          # Authenticate crane with gcloud
-          gcloud auth print-access-token | crane auth login -u oauth2accesstoken --password-stdin europe-west9-docker.pkg.dev
+          # Submit build asynchronously and get build ID
+          BUILD_ID=$(gcloud builds submit app/ \
+            --tag "europe-west9-docker.pkg.dev/epitech-iaas-prod/task-manager-prd/task-manager:${VERSION}" \
+            --region europe-west9 \
+            --async \
+            --format='value(id)')
 
-          # Copy image from dev to prod
-          crane copy ${DEV_IMAGE} ${PROD_IMAGE}:${VERSION}
-          crane copy ${DEV_IMAGE} ${PROD_IMAGE}:latest
+          echo "Build started: $BUILD_ID"
+
+          # Poll for build completion
+          while true; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" --region europe-west9 --format='value(status)')
+            echo "Build status: $STATUS"
+
+            if [[ "$STATUS" == "SUCCESS" ]]; then
+              echo "Build completed successfully"
+              break
+            elif [[ "$STATUS" == "FAILURE" || "$STATUS" == "CANCELLED" || "$STATUS" == "TIMEOUT" ]]; then
+              echo "Build failed with status: $STATUS"
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          # Tag as latest
+          gcloud artifacts docker tags add \
+            "europe-west9-docker.pkg.dev/epitech-iaas-prod/task-manager-prd/task-manager:${VERSION}" \
+            "europe-west9-docker.pkg.dev/epitech-iaas-prod/task-manager-prd/task-manager:latest" \
+            --quiet
 
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v2
