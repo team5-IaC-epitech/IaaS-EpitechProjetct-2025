@@ -842,8 +842,8 @@ resource "helm_release" "kube_state_metrics" {
       prometheusScrape = true
 
       service = {
-        port     = 8080
-        type     = "ClusterIP"
+        port = 8080
+        type = "ClusterIP"
       }
     })
   ]
