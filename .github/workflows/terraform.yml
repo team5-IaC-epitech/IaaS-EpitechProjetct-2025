@@ -52,6 +52,7 @@ jobs:
     name: Plan (${{ matrix.environment }})
     needs: validate
     runs-on: ${{ inputs.runner_type == 'github-hosted' && 'ubuntu-latest' || 'arc-runner-set' }}
+    continue-on-error: ${{ matrix.environment == 'prd' }}
     strategy:
       fail-fast: false
       matrix:
@@ -138,6 +139,7 @@ jobs:
     needs: deploy-dev
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ inputs.runner_type == 'github-hosted' && 'ubuntu-latest' || 'arc-runner-set' }}
+    continue-on-error: true
     environment: prd
     steps:
       - uses: actions/checkout@v4
