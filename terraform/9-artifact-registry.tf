@@ -32,3 +32,18 @@ resource "google_project_iam_member" "cloudbuild_artifactregistry" {
 
   depends_on = [google_project_service.required_apis]
 }
+
+# Grant GitHub Actions service account permission to submit Cloud Build jobs
+# This is needed for the CI/CD pipeline to build Docker images
+resource "google_project_iam_member" "github_actions_cloudbuild" {
+  project = var.project_id
+  role    = "roles/cloudbuild.builds.builder"
+  member  = "serviceAccount:team5-sa-${var.environment}@${var.project_id}.iam.gserviceaccount.com"
+}
+
+# Grant GitHub Actions service account permission to use service account
+resource "google_project_iam_member" "github_actions_service_usage" {
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:team5-sa-${var.environment}@${var.project_id}.iam.gserviceaccount.com"
+}
