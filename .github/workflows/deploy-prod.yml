@@ -145,7 +145,19 @@ jobs:
           crane copy ${DEV_IMAGE} ${PROD_IMAGE}:${VERSION}
           crane copy ${DEV_IMAGE} ${PROD_IMAGE}:latest
 
+      - name: Check if GKE cluster exists
+        id: cluster-check
+        run: |
+          if gcloud container clusters describe team5-gke-cluster --region europe-west9 --project epitech-iaas-prod &>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "GKE cluster exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "GKE cluster does not exist - skipping Helm deployment"
+          fi
+
       - name: Get GKE credentials
+        if: steps.cluster-check.outputs.exists == 'true'
         uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: team5-gke-cluster
@@ -153,9 +165,11 @@ jobs:
           project_id: epitech-iaas-prod
 
       - name: Setup Helm
+        if: steps.cluster-check.outputs.exists == 'true'
         uses: azure/setup-helm@v4
 
       - name: Deploy with Helm
+        if: steps.cluster-check.outputs.exists == 'true'
         run: |
           helm upgrade --install task-manager helm/task-manager \
             --namespace default \
@@ -167,6 +181,12 @@ jobs:
             --set secrets.databaseUrlSecretName=task-manager-database-url-prd \
             --set secrets.jwtSecretSecretName=task-manager-jwt-secret-prd \
             --wait --timeout 5m
+
+      - name: Skip deployment notice
+        if: steps.cluster-check.outputs.exists == 'false'
+        run: |
+          echo "::warning::GKE cluster not found in prod. Image was copied, but Helm deployment was skipped."
+          echo "Run 'terraform apply' with prd.tfvars to create the cluster."
 
   # Create prod tag after successful deployment
   create-tag:
