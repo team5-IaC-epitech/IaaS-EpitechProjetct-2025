@@ -110,3 +110,204 @@ groups:
         annotations:
           summary: "High number of concurrent requests"
           description: "There are {{ $value }} requests currently being processed (>50) for more than 2 minutes."
+
+  # =============================================================================
+  # CLUSTER HEALTH ALERTS
+  # =============================================================================
+  - name: cluster_health_alerts
+    interval: 30s
+    rules:
+      # Node Not Ready
+      - alert: NodeNotReady
+        expr: |
+          kube_node_status_condition{condition="Ready",status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: cluster
+        annotations:
+          summary: "Node {{ $labels.node }} is not ready"
+          description: "Node {{ $labels.node }} has been in NotReady state for more than 5 minutes."
+
+      # High Node CPU Usage
+      - alert: NodeHighCPU
+        expr: |
+          100 - (avg by(node) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: cluster
+        annotations:
+          summary: "High CPU usage on node {{ $labels.node }}"
+          description: "Node {{ $labels.node }} CPU usage is above 85% for more than 5 minutes."
+
+      # High Node Memory Usage
+      - alert: NodeHighMemory
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: cluster
+        annotations:
+          summary: "High memory usage on node {{ $labels.instance }}"
+          description: "Node memory usage is above 85% for more than 5 minutes."
+
+      # Node Disk Pressure
+      - alert: NodeDiskPressure
+        expr: |
+          kube_node_status_condition{condition="DiskPressure",status="true"} == 1
+        for: 2m
+        labels:
+          severity: critical
+          component: cluster
+        annotations:
+          summary: "Disk pressure on node {{ $labels.node }}"
+          description: "Node {{ $labels.node }} has disk pressure condition."
+
+      # Persistent Volume Almost Full
+      - alert: PersistentVolumeAlmostFull
+        expr: |
+          kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          component: cluster
+        annotations:
+          summary: "Persistent volume almost full"
+          description: "PersistentVolume {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full."
+
+  # =============================================================================
+  # GITHUB ACTIONS RUNNERS ALERTS
+  # =============================================================================
+  - name: runners_alerts
+    interval: 30s
+    rules:
+      # Runner Pod Crash Loop
+      - alert: RunnerCrashLoop
+        expr: |
+          rate(kube_pod_container_status_restarts_total{namespace="arc-runners"}[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: runners
+        annotations:
+          summary: "Runner pod {{ $labels.pod }} is crash looping"
+          description: "Runner pod {{ $labels.pod }} has restarted multiple times in the last 15 minutes."
+
+      # Runner Pod Pending Too Long
+      - alert: RunnerPendingTooLong
+        expr: |
+          kube_pod_status_phase{namespace="arc-runners", phase="Pending"} == 1
+        for: 10m
+        labels:
+          severity: warning
+          component: runners
+        annotations:
+          summary: "Runner pod {{ $labels.pod }} pending too long"
+          description: "Runner pod {{ $labels.pod }} has been in Pending state for more than 10 minutes. Check node availability."
+
+      # Runner High CPU Usage
+      - alert: RunnerHighCPU
+        expr: |
+          sum(rate(container_cpu_usage_seconds_total{namespace="arc-runners"}[5m])) by (pod) > 1.8
+        for: 5m
+        labels:
+          severity: warning
+          component: runners
+        annotations:
+          summary: "High CPU usage on runner {{ $labels.pod }}"
+          description: "Runner {{ $labels.pod }} is using more than 90% of its CPU limit for more than 5 minutes."
+
+      # Runner High Memory Usage
+      - alert: RunnerHighMemory
+        expr: |
+          sum(container_memory_working_set_bytes{namespace="arc-runners"}) by (pod) / 1024 / 1024 / 1024 > 3.5
+        for: 5m
+        labels:
+          severity: warning
+          component: runners
+        annotations:
+          summary: "High memory usage on runner {{ $labels.pod }}"
+          description: "Runner {{ $labels.pod }} is using more than 3.5GB of memory (limit is 4GB)."
+
+      # No Runner Nodes Available
+      - alert: NoRunnerNodesAvailable
+        expr: |
+          count(kube_node_labels{label_workload="runners"}) == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: runners
+        annotations:
+          summary: "No runner nodes available"
+          description: "No nodes with workload=runners label are available. Runner pods will remain pending."
+
+      # Runner Node Pool Scaling Issue
+      - alert: RunnerNodePoolMaxedOut
+        expr: |
+          count(kube_node_labels{label_workload="runners"}) >= 3
+        for: 10m
+        labels:
+          severity: warning
+          component: runners
+        annotations:
+          summary: "Runner node pool at maximum capacity"
+          description: "Runner node pool has reached maximum capacity (3 nodes). Consider increasing max_node_count."
+
+  # =============================================================================
+  # BOTTLENECK DETECTION ALERTS
+  # =============================================================================
+  - name: bottleneck_alerts
+    interval: 30s
+    rules:
+      # Pod OOM Killed
+      - alert: PodOOMKilled
+        expr: |
+          kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+        for: 0m
+        labels:
+          severity: critical
+          component: cluster
+        annotations:
+          summary: "Pod {{ $labels.pod }} was OOM killed"
+          description: "Container {{ $labels.container }} in pod {{ $labels.pod }} was killed due to Out Of Memory."
+
+      # Container CPU Throttling
+      - alert: ContainerCPUThrottling
+        expr: |
+          sum(rate(container_cpu_cfs_throttled_periods_total{container!=""}[5m])) by (namespace, pod, container)
+          /
+          sum(rate(container_cpu_cfs_periods_total{container!=""}[5m])) by (namespace, pod, container)
+          > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: cluster
+        annotations:
+          summary: "Container CPU throttling detected"
+          description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is being CPU throttled > 50%."
+
+      # Too Many Pods Pending
+      - alert: TooManyPodsPending
+        expr: |
+          count(kube_pod_status_phase{phase="Pending"}) > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: cluster
+        annotations:
+          summary: "Too many pods pending"
+          description: "There are {{ $value }} pods in Pending state for more than 10 minutes."
+
+      # HPA At Max Replicas
+      - alert: HPAMaxedOut
+        expr: |
+          kube_horizontalpodautoscaler_status_current_replicas == kube_horizontalpodautoscaler_spec_max_replicas
+        for: 15m
+        labels:
+          severity: warning
+          component: cluster
+        annotations:
+          summary: "HPA {{ $labels.horizontalpodautoscaler }} at max replicas"
+          description: "HPA {{ $labels.horizontalpodautoscaler }} in namespace {{ $labels.namespace }} has been at max replicas for 15 minutes."
