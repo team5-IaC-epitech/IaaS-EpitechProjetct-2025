@@ -62,7 +62,7 @@ jobs:
             wif_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github'
             service_account: 'team5-sa-dev@iaasepitech.iam.gserviceaccount.com'
           - environment: prd
-            wif_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-prd/providers/github'
+            wif_provider: 'projects/983571400636/locations/global/workloadIdentityPools/team5-wif-prd/providers/github'
             service_account: 'team5-sa-prd@epitech-iaas-prod.iam.gserviceaccount.com'
 
     steps:
@@ -147,7 +147,7 @@ jobs:
       - id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-prd/providers/github'
+          workload_identity_provider: 'projects/983571400636/locations/global/workloadIdentityPools/team5-wif-prd/providers/github'
           service_account: 'team5-sa-prd@epitech-iaas-prod.iam.gserviceaccount.com'
 
       - name: Setup Terraform
