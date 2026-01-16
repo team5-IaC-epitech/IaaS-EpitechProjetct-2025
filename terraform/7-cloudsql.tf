@@ -5,8 +5,7 @@ resource "google_sql_database_instance" "postgres" {
   region           = var.region
   project          = var.project_id
 
-  # Production: true, Dev: false
-  deletion_protection = var.environment == "prd" ? true : false
+  deletion_protection = false
 
   settings {
     tier = var.cloudsql_tier
