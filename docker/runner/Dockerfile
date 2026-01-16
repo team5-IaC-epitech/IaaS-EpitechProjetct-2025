@@ -4,7 +4,7 @@
 # The official runner images are minimal - this adds Node.js
 # which is required for JavaScript-based actions (checkout, setup-terraform, etc.)
 
-FROM ghcr.io/actions/actions-runner:ubuntu-22.04
+FROM ghcr.io/actions/actions-runner:latest
 
 USER root
 
