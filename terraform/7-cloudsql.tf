@@ -55,7 +55,7 @@ resource "google_sql_database_instance" "postgres" {
 
     database_flags {
       name  = "shared_buffers"
-      value = var.environment == "prd" ? "262144" : "32768" # 1GB for prod, 128MB for dev (in 8KB pages)
+      value = "32768"
     }
 
     database_flags {

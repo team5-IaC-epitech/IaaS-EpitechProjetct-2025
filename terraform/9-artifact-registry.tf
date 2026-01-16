@@ -29,4 +29,6 @@ resource "google_project_iam_member" "cloudbuild_artifactregistry" {
   project = var.project_id
   role    = "roles/artifactregistry.writer"
   member  = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+
+  depends_on = [google_project_service.required_apis]
 }
