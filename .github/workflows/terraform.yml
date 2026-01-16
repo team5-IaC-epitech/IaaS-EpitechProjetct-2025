@@ -12,7 +12,7 @@ on:
       runner_type:
         description: 'Runner type to use'
         required: false
-        default: 'github-hosted'
+        default: 'self-hosted'
         type: choice
         options:
           - github-hosted
@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   terraform:
-    runs-on: ${{ inputs.runner_type == 'self-hosted' && 'arc-runner-set' || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.runner_type == 'github-hosted' && 'ubuntu-latest' || 'arc-runner-set' }}
 
     strategy:
       matrix:
