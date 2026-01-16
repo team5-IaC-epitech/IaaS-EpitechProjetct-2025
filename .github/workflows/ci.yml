@@ -1,0 +1,175 @@
+name: CI - Pull Request Checks
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+jobs:
+  # Detect what changed
+  changes:
+    name: Detect Changes
+    runs-on: arc-runner-set
+    outputs:
+      infra: ${{ steps.filter.outputs.infra }}
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'terraform/**'
+              - 'backends/**'
+            app:
+              - 'app/**'
+              - 'helm/**'
+
+  # Terraform validation (always runs for infra changes)
+  terraform-validate:
+    name: Terraform Validate
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: arc-runner-set
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format Check
+        working-directory: terraform
+        run: terraform fmt -check -recursive -diff
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: terraform
+        run: terraform validate
+
+  # Terraform plan for DEV
+  terraform-plan-dev:
+    name: Terraform Plan (dev)
+    needs: terraform-validate
+    runs-on: arc-runner-set
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/688861612302/locations/global/workloadIdentityPools/team5-wif-dev/providers/github'
+          service_account: 'team5-sa-dev@iaasepitech.iam.gserviceaccount.com'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: terraform
+        run: terraform init -backend-config=../backends/dev.config
+
+      - name: Terraform Plan
+        working-directory: terraform
+        env:
+          TF_VAR_github_app_id: ${{ secrets.GH_APP_ID }}
+          TF_VAR_github_app_installation_id: ${{ secrets.GH_INSTALLATION_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        run: |
+          terraform plan -lock=false -var-file=env/dev.tfvars -out=tfplan-dev
+          terraform show -no-color tfplan-dev > plan-output.txt
+
+      - name: Comment PR with Plan
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/plan-output.txt', 'utf8');
+            const truncated = plan.length > 60000 ? plan.substring(0, 60000) + '\n... (truncated)' : plan;
+
+            const body = `## Terraform Plan (dev) 📋
+
+            <details>
+            <summary>Click to expand</summary>
+
+            \`\`\`hcl
+            ${truncated}
+            \`\`\`
+
+            </details>`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  # App build and test
+  app-build:
+    name: Build & Test App
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: arc-runner-set
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build
+        working-directory: app
+        run: go build -v ./...
+
+      - name: Test
+        working-directory: app
+        run: go test -v ./...
+
+  # Helm lint
+  helm-lint:
+    name: Helm Lint
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: arc-runner-set
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Lint Chart
+        run: helm lint helm/task-manager
+
+  # Summary check
+  ci-success:
+    name: CI Success
+    needs: [changes, terraform-validate, terraform-plan-dev, app-build, helm-lint]
+    if: always()
+    runs-on: arc-runner-set
+    steps:
+      - name: Check Results
+        run: |
+          echo "Changes detected:"
+          echo "  - Infra: ${{ needs.changes.outputs.infra }}"
+          echo "  - App: ${{ needs.changes.outputs.app }}"
+
+          # Check if any required job failed
+          if [[ "${{ needs.terraform-validate.result }}" == "failure" ]] || \
+             [[ "${{ needs.terraform-plan-dev.result }}" == "failure" ]] || \
+             [[ "${{ needs.app-build.result }}" == "failure" ]] || \
+             [[ "${{ needs.helm-lint.result }}" == "failure" ]]; then
+            echo "CI failed!"
+            exit 1
+          fi
+
+          echo "CI passed!"
