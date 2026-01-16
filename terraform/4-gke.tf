@@ -71,12 +71,10 @@ resource "google_container_node_pool" "apps" {
   }
 
   node_config {
-    # e2-medium: 2 vCPU, 4GB RAM - good balance for small workloads
-    # Cost: ~$25/month per node in europe-west9
-    # NOTE: Only ~240m CPU available for apps due to system pod overhead (~700m)
-    #       Consider upgrading to e2-standard-2 ($49/month) for better pod density
-    #       e2-standard-2 provides ~1200m available CPU (5x more app capacity)
-    machine_type = "e2-medium"
+    # e2-standard-2: 2 vCPU, 8GB RAM - better pod density
+    # Cost: ~$49/month per node in europe-west9
+    # Provides ~1200m available CPU for apps (vs ~240m on e2-medium)
+    machine_type = "e2-standard-2"
 
     disk_size_gb = 50         # 50GB boot disk (sufficient for app containers)
     disk_type    = "pd-standard" # Standard HDD (cheaper, adequate for apps)
