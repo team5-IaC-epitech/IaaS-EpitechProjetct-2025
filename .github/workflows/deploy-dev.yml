@@ -150,18 +150,20 @@ jobs:
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker europe-west9-docker.pkg.dev --quiet
-
-      - name: Build and Push Image
-        working-directory: app
+      - name: Build and Push Image with Cloud Build
         run: |
-          IMAGE="europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager"
           VERSION="${{ needs.version.outputs.version }}"
 
-          docker build -t ${IMAGE}:${VERSION} -t ${IMAGE}:latest .
-          docker push ${IMAGE}:${VERSION}
-          docker push ${IMAGE}:latest
+          gcloud builds submit app/ \
+            --tag "europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager:${VERSION}" \
+            --region europe-west9 \
+            --quiet
+
+          # Also tag as latest
+          gcloud artifacts docker tags add \
+            "europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager:${VERSION}" \
+            "europe-west9-docker.pkg.dev/iaasepitech/task-manager-dev/task-manager:latest" \
+            --quiet
 
       - name: Get GKE credentials
         uses: google-github-actions/get-gke-credentials@v2
